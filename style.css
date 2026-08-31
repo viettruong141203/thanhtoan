@@ -12,7 +12,7 @@ body {
   background-image: radial-gradient(circle at 10% 20%, rgba(37, 99, 235, 0.06), transparent 30%), radial-gradient(circle at 90% 80%, rgba(139, 92, 246, 0.06), transparent 30%);
   background-attachment: fixed; color: var(--text-main); margin: 0; padding: 0;
   display: flex; flex-direction: column; align-items: center; min-height: 100dvh; 
-  padding-bottom: calc(80px + env(safe-area-inset-bottom)); -webkit-font-smoothing: antialiased;
+  padding-bottom: calc(90px + env(safe-area-inset-bottom)); -webkit-font-smoothing: antialiased;
 }
 .container { width: 100%; max-width: 480px; position: relative; padding: 0 calc(16px + env(safe-area-inset-right)) 0 calc(16px + env(safe-area-inset-left)); }
 
@@ -21,7 +21,7 @@ body {
 .tab-view.active { display: block; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-/* THANH ĐIỀU HƯỚNG DƯỚI CÙNG (BOTTOM NAV) */
+/* THANH ĐIỀU HƯỚNG DƯỚI CÙNG */
 .bottom-nav {
   position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-top: 1px solid rgba(0,0,0,0.05);
@@ -29,9 +29,9 @@ body {
   padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); z-index: 900;
   box-shadow: 0 -4px 20px rgba(0,0,0,0.03);
 }
-.nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--text-muted); cursor: pointer; transition: 0.3s; width: 70px; }
+.nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--text-muted); cursor: pointer; transition: 0.3s; width: 80px; }
 .nav-item.active { color: var(--brand-primary); }
-.nav-item svg { width: 24px; height: 24px; stroke: currentColor; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; transition: 0.3s cubic-bezier(0.16, 1, 0.3, 1);}
+.nav-item svg { width: 24px; height: 24px; stroke: currentColor; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; transition: 0.3s; }
 .nav-item.active svg { transform: scale(1.15); stroke-width: 2.5; }
 .nav-item span { font-size: 11px; font-weight: 700; }
 
@@ -44,8 +44,8 @@ body {
 .search-bar:focus-within { background: #ffffff; border-color: var(--brand-primary); box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.15); }
 .search-bar svg { width: 18px; height: 18px; color: #94a3b8; flex-shrink: 0;}
 .search-bar input { flex: 1; min-width: 0; background: transparent; border: none; color: var(--text-main); outline: none; font-family: inherit; margin-left: 10px; font-size: 15px; font-weight: 500; }
-.add-btn { flex-shrink: 0; width: 48px; height: 48px; border-radius: 16px; background: var(--brand-gradient); color: white; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 8px 16px var(--brand-glow); transition: 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
-.add-btn:active { transform: scale(0.9) translateY(2px); }
+.add-btn { flex-shrink: 0; width: 48px; height: 48px; border-radius: 16px; background: var(--brand-gradient); color: white; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 8px 16px var(--brand-glow); transition: 0.2s;}
+.add-btn:active { transform: scale(0.9); }
 .filter-wrapper { display: flex; overflow-x: auto; gap: 8px; scrollbar-width: none; padding-bottom: 2px; }
 .filter-btn { padding: 8px 18px; border-radius: 14px; border: 1px solid rgba(0,0,0,0.04); background: #f8fafc; color: var(--text-muted); font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: 0.3s; }
 .filter-btn.active { background: var(--text-main); color: #ffffff; border-color: var(--text-main); box-shadow: 0 6px 16px rgba(15, 23, 42, 0.2); }
@@ -65,11 +65,12 @@ body {
 .status-text.pending { color: var(--status-pending); }
 .status-text.success { color: var(--status-success); }
 .status-text.failed { color: var(--status-failed); }
+
 .pagination { display: flex; justify-content: center; gap: 16px; margin: 16px 0 24px; }
 .page-btn { background: #ffffff; border: none; border-radius: 16px; width: 46px; height: 46px; display: flex; justify-content: center; align-items: center; cursor: pointer; box-shadow: 0 8px 20px rgba(0,0,0,0.06);}
 .page-info { font-size: 14px; font-weight: 600; color: var(--text-muted); background: #ffffff; padding: 8px 16px; border-radius: 12px;}
 
-/* BẢNG NGÂN HÀNG & FORM NGÂN HÀNG */
+/* BẢNG NGÂN HÀNG & FORM */
 .page-title { font-size: 1.6rem; font-weight: 800; color: var(--text-main); margin: 0 0 16px 0;}
 .bank-table-card { width: 100%; background: #ffffff; border-radius: 20px; border: 1px solid rgba(0,0,0,0.05); overflow: hidden; margin-bottom: 20px; box-shadow: 0 10px 40px -10px rgba(0,0,0,0.08);}
 .bank-table { width: 100%; border-collapse: collapse; text-align: left; }
@@ -81,7 +82,7 @@ body {
 .bank-badge.active { background: #d1fae5; color: #047857; }
 .bank-badge.inactive { background: #f1f5f9; color: var(--text-muted); }
 
-/* MODAL & VIEW (DÙNG CHO TẠO GIAO DỊCH, HÓA ĐƠN VÀ THÊM BANK) */
+/* MODAL CHUNG */
 .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.5); backdrop-filter: blur(8px); display: none; align-items: center; justify-content: center; z-index: 1000; padding: 16px; opacity: 0; transition: opacity 0.3s; }
 .modal-overlay.active { display: flex; opacity: 1; }
 .modal-overlay.active .modal-content { transform: translateY(0) scale(1); opacity: 1;}
@@ -99,7 +100,7 @@ body {
 button.btn-primary { width: 100%; padding: 16px; background: var(--brand-gradient); color: #ffffff; border: none; border-radius: 18px; font-size: 16px; font-weight: 700; cursor: pointer; min-height: 54px; box-shadow: 0 10px 25px var(--brand-glow); transition: 0.2s;}
 button.btn-primary:active { transform: scale(0.96); }
 
-/* FORM CHỌN NGÂN HÀNG */
+/* FORM TẠO NGÂN HÀNG TRONG MODAL */
 .form-group { margin-bottom: 18px; text-align: left; position: relative; }
 .form-label { display: block; font-size: 13px; font-weight: 700; color: var(--text-muted); margin-bottom: 8px; }
 .form-input { width: 100%; background: #f8fafc; border: 2px solid rgba(0,0,0,0.04); border-radius: 16px; padding: 14px 16px; font-size: 15px; font-weight: 700; outline: none; color: var(--text-main); transition: 0.3s; }
