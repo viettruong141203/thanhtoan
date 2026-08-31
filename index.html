@@ -3,16 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, viewport-fit=cover">
-  <title>Quản lý Thanh toán</title>
+  <title>Quản lý Hệ thống</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
+  <!-- ĐỒNG HỒ ĐẾM NGƯỢC -->
   <div class="session-timer" id="sessionTimer">
     ⏱ <span id="timeRemaining">05:00</span>
   </div>
 
-  <!-- TAB 1: GIAO DỊCH -->
+  <!-- ===================================== -->
+  <!-- TAB 1: DANH SÁCH GIAO DỊCH             -->
+  <!-- ===================================== -->
   <div id="tab-transactions" class="tab-view active">
     <div class="container">
       <div class="sticky-header">
@@ -21,6 +24,7 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
             <input type="text" id="searchInput" placeholder="Tìm mã giao dịch..." oninput="onSearchInput()">
           </div>
+          <!-- Nút tạo giao dịch mới -->
           <button class="add-btn" onclick="openAddModal()">
             <svg viewBox="0 0 24 24" fill="none"><path d="M12 5V19M5 12H19"></path></svg>
           </button>
@@ -50,10 +54,12 @@
     </div>
   </div>
 
-  <!-- TAB 2: NGÂN HÀNG -->
+  <!-- ===================================== -->
+  <!-- TAB 2: QUẢN LÝ NGÂN HÀNG              -->
+  <!-- ===================================== -->
   <div id="tab-banks" class="tab-view">
     <div class="container" style="padding-top: max(16px, env(safe-area-inset-top));">
-      <h2 class="page-title">Ngân hàng</h2>
+      <h2 class="page-title">Tài khoản nhận tiền</h2>
       
       <div class="bank-table-card">
         <table class="bank-table">
@@ -64,6 +70,7 @@
               <th>Trạng thái</th>
             </tr>
           </thead>
+          <!-- Nơi JS sẽ đổ dữ liệu danh sách ngân hàng -->
           <tbody id="bankTableBody">
             <tr><td colspan="3" style="text-align:center; color:var(--text-muted); padding: 20px;">Đang tải dữ liệu...</td></tr>
           </tbody>
@@ -74,7 +81,9 @@
     </div>
   </div>
 
-  <!-- THANH ĐIỀU HƯỚNG DƯỚI CÙNG (BOTTOM NAV) -->
+  <!-- ===================================== -->
+  <!-- THANH ĐIỀU HƯỚNG DƯỚI CÙNG            -->
+  <!-- ===================================== -->
   <div class="bottom-nav">
     <div class="nav-item active" onclick="switchTab('transactions', this)">
       <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
@@ -86,14 +95,16 @@
     </div>
   </div>
 
-  <!-- MODAL CHỨA CÁC FORM NHẬP / HÓA ĐƠN -->
+  <!-- ===================================== -->
+  <!-- MODAL CHỨA CÁC FORM XỬ LÝ NỔI         -->
+  <!-- ===================================== -->
   <div class="modal-overlay" id="mainModal">
     <div class="modal-content">
       <button class="close-btn" onclick="closeModal()">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
       </button>
       
-      <!-- FORM TẠO GIAO DỊCH -->
+      <!-- FORM 1: TẠO GIAO DỊCH -->
       <div class="add-view" id="view-add">
         <h3 class="add-title">Tạo giao dịch</h3>
         <div class="add-sub">Nhập số tiền để tiếp tục</div>
@@ -107,7 +118,7 @@
         <div id="message" style="text-align:center; margin-top:14px; font-size:14px; font-weight:600;"></div>
       </div>
 
-      <!-- HÓA ĐƠN CHI TIẾT -->
+      <!-- FORM 2: HÓA ĐƠN CHI TIẾT -->
       <div class="receipt-view" id="view-receipt" style="padding: 24px 20px;">
         <div class="receipt-card">
           <div class="receipt-header">
@@ -137,7 +148,7 @@
         <button class="btn-primary" style="display: none; margin-top: 20px;" id="btnGoToPayment" onclick="openPaymentView()">Thanh toán ngay</button>
       </div>
 
-      <!-- FORM THÊM MỚI NGÂN HÀNG -->
+      <!-- FORM 3: THÊM NGÂN HÀNG MỚI -->
       <div class="receipt-view" id="view-bank-form" style="padding: 32px 24px;">
         <h3 class="add-title" style="margin-bottom: 20px;">Thêm Ngân Hàng</h3>
         
@@ -168,10 +179,13 @@
         <button class="btn-primary" id="btnSaveBank" onclick="saveBankConfig()">Lưu cấu hình</button>
         <div class="loader loader-blue" id="loaderSaveBank" style="margin-top:12px;"></div>
       </div>
+
     </div>
   </div>
 
   <div class="toast" id="toastMsg">Đã sao chép!</div>
+  
+  <!-- Chèn Script Cuối cùng -->
   <script src="script.js"></script>
 </body>
 </html>
