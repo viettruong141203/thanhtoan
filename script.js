@@ -1,10 +1,10 @@
+// DÁN LINK MỚI ĐÃ DEPLOY VÀO ĐÂY NHÉ
 const API_URL = "https://script.google.com/macros/s/AKfycbyyun_QUMFygjjOUbPLLE9mJJQdLGOXPV8OvXlh-JM8Napr4Cx8tBRccHMlSCZ_vvBb/exec";
 
-let globalRecords = [], currentTransaction = null, autoUpdateTimeout, allBanksList = [];
+let globalRecords = [], currentTransaction = null, autoUpdateTimeout, sessionTimerId, allBanksList = [];
 let currentFilter = 'All', searchQuery = '', currentPage = 1;
 const itemsPerPage = 10;
 
-// BẢO MẬT NGẦM (Không hiển thị timer)
 function verifyAuthSilent() {
   const authExpiry = localStorage.getItem('auth_expiry');
   if (!authExpiry || Date.now() >= parseInt(authExpiry)) {
@@ -29,9 +29,6 @@ function switchTab(tabId, el) {
   if (tabId === 'banks') loadBankAccounts();
 }
 
-// ----------------------------------------------------
-// QUẢN LÝ NGÂN HÀNG (CARDS UI)
-// ----------------------------------------------------
 function preloadBanksFromVietQR() {
   fetch('https://api.vietqr.io/v2/banks').then(res => res.json()).then(data => { if(data.code === '00') allBanksList = data.data; }).catch(() => {});
 }
@@ -52,7 +49,9 @@ function loadBankAccounts() {
   const container = document.getElementById('bankCardsContainer');
   container.innerHTML = `<div style="text-align:center; color:var(--text-muted); padding:40px; font-weight:600;">Đang tải dữ liệu...</div>`;
 
-  fetch(`${API_URL}?action=getBanks&t=${Date.now()}`).then(res => res.json()).then(res => {
+  fetch(`${API_URL}?action=getBanks&t=${Date.now()}`)
+    .then(res => res.json())
+    .then(res => {
       if(!res.success || res.data.length === 0) {
         container.innerHTML = `<div style="text-align:center; color:var(--text-muted); padding:40px; font-weight:600;">Chưa có tài khoản nào</div>`; return;
       }
@@ -60,7 +59,9 @@ function loadBankAccounts() {
       res.data.forEach(bk => {
         const bankObj = allBanksList.find(b => b.bin === bk.bin || b.shortName === bk.bankName);
         const logoUrl = bankObj ? bankObj.logo : 'https://img.icons8.com/fluency/48/bank.png';
-        const isActive = bk.status.includes('dùng');
+        
+        // Cập nhật điều kiện trạng thái "Hoạt động"
+        const isActive = bk.status === 'Hoạt động';
         
         container.innerHTML += `
           <div class="bank-card-item">
@@ -73,7 +74,7 @@ function loadBankAccounts() {
               </div>
             </div>
             <div class="bank-action-box">
-              <span class="bank-status-pill ${isActive ? 'active' : 'inactive'}" onclick="setActiveBank('${bk.id}')">${isActive ? 'Đang dùng' : 'Chọn dùng'}</span>
+              <span class="bank-status-pill ${isActive ? 'active' : 'inactive'}" onclick="setActiveBank('${bk.id}')">${isActive ? 'Hoạt động' : 'Chọn dùng'}</span>
             </div>
           </div>`;
       });
@@ -124,9 +125,6 @@ function saveBankConfig() {
     });
 }
 
-// ----------------------------------------------------
-// ĐỒNG BỘ NGẦM CHUẨN 1.5 GIÂY
-// ----------------------------------------------------
 function formatCurrency(val) { return (!val || val == 0 || val === "0") ? "" : val.toString().replace(/\B(?=(\d{3})+(?!\d))/g, "."); }
 function formatInput(el) { let raw = el.value.replace(/[^0-9]/g, ''); el.value = raw ? (parseInt(raw, 10) === 0 ? '' : formatCurrency(parseInt(raw, 10))) : ''; }
 function adjustAmount(step) {
@@ -147,7 +145,7 @@ function loadData(isSilent = false) {
          autoUpdateTimeout = setTimeout(() => loadData(true), 1500); return;
       }
       globalRecords = res.data; renderDeckView(globalRecords); checkAndAutoUpdateModal(globalRecords);
-      autoUpdateTimeout = setTimeout(() => loadData(true), 1500); // CHUẨN 1.5S
+      autoUpdateTimeout = setTimeout(() => loadData(true), 1500); 
     }).catch(() => { autoUpdateTimeout = setTimeout(() => loadData(true), 1500); });
 }
 
