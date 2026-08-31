@@ -11,6 +11,8 @@
   <!-- TAB 1: GIAO DỊCH -->
   <div id="tab-transactions" class="tab-view active">
     <div class="container">
+      
+      <!-- Khối Search + Filter -->
       <div class="header-card">
         <div class="top-row">
           <div class="search-bar">
@@ -18,7 +20,7 @@
             <input type="text" id="searchInput" placeholder="Tìm mã giao dịch..." oninput="onSearchInput()">
           </div>
           <button class="add-btn" onclick="openAddModal()">
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 5V19M5 12H19"></path></svg>
           </button>
         </div>
 
@@ -38,7 +40,7 @@
         <button class="page-btn" id="prevBtn" onclick="changePage(-1)">
           <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2.5" fill="none"><polyline points="15 18 9 12 15 6"></polyline></svg>
         </button>
-        <span class="page-info" id="pageInfo">1 / 1</span>
+        <span class="page-info" id="pageInfo">1 / 15</span>
         <button class="page-btn" id="nextBtn" onclick="changePage(1)">
           <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2.5" fill="none"><polyline points="9 18 15 12 9 6"></polyline></svg>
         </button>
@@ -46,17 +48,27 @@
     </div>
   </div>
 
-  <!-- TAB 2: NGÂN HÀNG (DẠNG THẺ MỚI) -->
+  <!-- TAB 2: NGÂN HÀNG (GIAO DIỆN BẢNG SANG TRỌNG) -->
   <div id="tab-banks" class="tab-view">
     <div class="container" style="padding-top: max(16px, env(safe-area-inset-top));">
       <h2 class="page-title">Ngân hàng</h2>
       
-      <!-- Danh sách thẻ ngân hàng -->
-      <div id="bankCardList">
-        <div style="text-align: center; color: var(--text-muted); padding: 40px;">Đang tải dữ liệu...</div>
+      <div class="bank-table-card">
+        <table class="bank-table">
+          <thead>
+            <tr>
+              <th>Ngân hàng</th>
+              <th>Tài khoản</th>
+              <th>Trạng thái</th>
+            </tr>
+          </thead>
+          <tbody id="bankTableBody">
+            <tr><td colspan="3" style="text-align:center; color:var(--text-muted); padding: 20px;">Đang tải dữ liệu...</td></tr>
+          </tbody>
+        </table>
       </div>
       
-      <button class="btn-primary" onclick="openBankForm()" style="margin-top: 8px;">+ Thêm tài khoản mới</button>
+      <button class="btn-primary" onclick="openBankForm()">+ Thêm tài khoản mới</button>
     </div>
   </div>
 
@@ -123,7 +135,7 @@
         <button class="btn-primary" style="display: none; margin-top: 20px;" id="btnGoToPayment" onclick="openPaymentView()">Thanh toán ngay</button>
       </div>
 
-      <!-- FORM THÊM NGÂN HÀNG -->
+      <!-- FORM THÊM MỚI NGÂN HÀNG -->
       <div class="receipt-view" id="view-bank-form" style="padding: 32px 24px;">
         <h3 class="add-title" style="margin-bottom: 24px;">Thêm Ngân Hàng</h3>
         
@@ -143,17 +155,19 @@
 
         <div class="form-group">
           <label class="form-label">Số tài khoản</label>
-          <input type="text" class="form-input" id="bankAccInput" placeholder="Ví dụ: 0123456789" inputmode="numeric">
+          <!-- ÉP FORMAT TEXT, KHÔNG DÙNG TYPE NUMBER TRÁNH LỖI IOS -->
+          <input type="text" class="form-input" id="bankAccInput" placeholder="Ví dụ: 0123456789" autocomplete="off">
         </div>
 
         <div class="form-group">
           <label class="form-label">Chủ tài khoản</label>
-          <input type="text" class="form-input uppercase" id="bankOwnerInput" placeholder="DINH VIET TRUONG" oninput="formatOwnerName(this)">
+          <input type="text" class="form-input uppercase" id="bankOwnerInput" placeholder="DINH VIET TRUONG" oninput="formatOwnerName(this)" autocomplete="off">
         </div>
 
-        <button class="btn-primary" id="btnSaveBank" onclick="saveBankConfig()">Lưu ngân hàng</button>
+        <button class="btn-primary" id="btnSaveBank" onclick="saveBankConfig()">Lưu cấu hình</button>
         <div class="loader" id="loaderSaveBank" style="margin-top:12px;"></div>
       </div>
+
     </div>
   </div>
 
