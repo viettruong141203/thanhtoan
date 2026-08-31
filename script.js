@@ -1,67 +1,58 @@
 const API_URL = "https://script.google.com/macros/s/AKfycbyyun_QUMFygjjOUbPLLE9mJJQdLGOXPV8OvXlh-JM8Napr4Cx8tBRccHMlSCZ_vvBb/exec";
 
-let globalRecords = [], currentTransaction = null, autoUpdateTimeout, sessionInterval, allBanksList = [];
+let globalRecords = [], currentTransaction = null, autoUpdateTimeout, sessionTimerId, allBanksList = [];
 let currentFilter = 'All', searchQuery = '', currentPage = 1;
 const itemsPerPage = 10;
 
-// BẢO MẬT & ĐẾM NGƯỢC
-window.onload = function() {
+// BẢO MẬT PHIÊN LÀM VIỆC NGẦM (KHÔNG HIỂN THỊ ĐỒNG HỒ)
+function verifyAuthSilent() {
   const authExpiry = localStorage.getItem('auth_expiry');
-  const now = new Date().getTime();
-  if (!authExpiry || now >= parseInt(authExpiry)) {
-    window.location.href = "login.html"; return;
+  if (!authExpiry || Date.now() >= parseInt(authExpiry)) {
+    logout();
+    return false;
   }
-  startSessionTimer(parseInt(authExpiry));
-  loadData(false);
-  preloadBanksFromVietQR();
-};
-
-function startSessionTimer(expiryTime) {
-  clearInterval(sessionInterval);
-  const timeDisplay = document.getElementById('timeRemaining');
-  function updateTimer() {
-    const distance = expiryTime - new Date().getTime();
-    if (distance <= 0) { clearInterval(sessionInterval); window.location.href = "login.html"; return; }
-    const m = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
-    const s = Math.floor((distance % (1000 * 60)) / 1000);
-    timeDisplay.innerText = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-  }
-  updateTimer(); sessionInterval = setInterval(updateTimer, 1000);
+  return true;
 }
 
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') {
-    const authExpiry = localStorage.getItem('auth_expiry');
-    if (!authExpiry || new Date().getTime() >= parseInt(authExpiry)) window.location.href = "login.html";
+window.onload = function() {
+  if (verifyAuthSilent()) {
+    // Chạy vòng lặp ngầm kiểm tra 5 giây 1 lần
+    clearInterval(sessionTimerId);
+    sessionTimerId = setInterval(verifyAuthSilent, 5000);
+    
+    loadData(false);
+    preloadBanksFromVietQR();
   }
+};
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') verifyAuthSilent();
 });
 
+function logout() {
+  localStorage.removeItem('auth_expiry');
+  clearInterval(sessionTimerId);
+  window.location.replace("./login.html");
+}
+
 // ----------------------------------------------------
-// ĐIỀU HƯỚNG BOTTOM NAV (CHUYỂN TAB CỰC MƯỢT)
+// ĐIỀU HƯỚNG BOTTOM NAV (CHUYỂN TAB)
 // ----------------------------------------------------
 function switchTab(tabId, el) {
-  // Thay đổi trạng thái nút dưới cùng
   document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
   el.classList.add('active');
 
-  // Chuyển màn hình
   document.querySelectorAll('.tab-view').forEach(tab => tab.classList.remove('active'));
   document.getElementById('tab-' + tabId).classList.add('active');
 
-  // Nếu người dùng chọn tab Ngân hàng thì kéo API cập nhật dữ liệu
-  if (tabId === 'banks') {
-    loadBankAccounts();
-  }
+  if (tabId === 'banks') loadBankAccounts();
 }
 
 // ----------------------------------------------------
-// QUẢN LÝ NGÂN HÀNG (VIETQR API)
+// QUẢN LÝ NGÂN HÀNG
 // ----------------------------------------------------
 function preloadBanksFromVietQR() {
-  fetch('https://api.vietqr.io/v2/banks')
-    .then(res => res.json())
-    .then(data => { if(data.code === '00') allBanksList = data.data; })
-    .catch(() => {});
+  fetch('https://api.vietqr.io/v2/banks').then(res => res.json()).then(data => { if(data.code === '00') allBanksList = data.data; }).catch(() => {});
 }
 
 function removeVietnameseTones(str) {
@@ -82,7 +73,7 @@ function loadBankAccounts() {
   const tbody = document.getElementById('bankTableBody');
   tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--text-muted); padding:20px;">Đang tải dữ liệu...</td></tr>`;
 
-  fetch(`${API_URL}?action=getBanks&t=${new Date().getTime()}`)
+  fetch(`${API_URL}?action=getBanks&t=${Date.now()}`)
     .then(res => res.json())
     .then(res => {
       if(!res.success || res.data.length === 0) {
@@ -96,12 +87,14 @@ function loadBankAccounts() {
         tbody.innerHTML += `
           <tr>
             <td>
-              <img src="${logoUrl}" class="bank-logo-mini">
-              <span>${bk.bankName}</span>
+              <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+                 <img src="${logoUrl}" class="bank-logo-mini">
+                 <span style="font-size:11px;">${bk.bankName}</span>
+              </div>
             </td>
             <td>
-              <span class="mono">${bk.accNumber}</span><br>
-              <small style="color:var(--text-muted); font-size:11px;">${bk.accOwner}</small>
+              <span class="card-id">${bk.accNumber}</span><br>
+              <span style="color:var(--text-muted); font-size:11px;">${bk.accOwner}</span>
             </td>
             <td>
               <span class="bank-badge ${isActive ? 'active' : 'inactive'}" onclick="setActiveBank('${bk.id}')">
@@ -115,12 +108,11 @@ function loadBankAccounts() {
 
 function setActiveBank(bankId) {
   showToast("Đang xử lý...");
-  fetch(`${API_URL}?action=setActiveBank&id=${bankId}&t=${new Date().getTime()}`).then(res => res.json()).then(res => {
+  fetch(`${API_URL}?action=setActiveBank&id=${bankId}&t=${Date.now()}`).then(res => res.json()).then(res => {
       showToast(res.message); loadBankAccounts();
   });
 }
 
-// Bật form thêm ngân hàng vào Modal
 function openBankForm() {
   document.querySelectorAll('#mainModal .add-view, #mainModal .receipt-view').forEach(el => el.classList.remove('active'));
   document.getElementById('view-bank-form').classList.add('active');
@@ -153,19 +145,19 @@ function saveBankConfig() {
   if (!bin || !acc || !owner) { showToast("Vui lòng điền đủ thông tin!"); return; }
   btn.style.display = 'none'; loader.style.display = 'block';
 
-  fetch(`${API_URL}?action=addBank&bankName=${encodeURIComponent(name)}&bin=${encodeURIComponent(bin)}&accNumber=${encodeURIComponent(acc)}&accOwner=${encodeURIComponent(owner)}&t=${new Date().getTime()}`)
+  fetch(`${API_URL}?action=addBank&bankName=${encodeURIComponent(name)}&bin=${encodeURIComponent(bin)}&accNumber=${encodeURIComponent(acc)}&accOwner=${encodeURIComponent(owner)}&t=${Date.now()}`)
     .then(res => res.json()).then(res => {
       btn.style.display = 'block'; loader.style.display = 'none';
       if(res.success) { 
         showToast("Đã lưu ngân hàng!"); 
         closeModal(); 
-        loadBankAccounts(); // Refresh lại tab Ngân hàng
+        loadBankAccounts(); 
       } else { showToast("Lỗi: " + res.message); }
     });
 }
 
 // ----------------------------------------------------
-// XỬ LÝ GIAO DỊCH (TAB GIAO DỊCH)
+// XỬ LÝ GIAO DỊCH
 // ----------------------------------------------------
 function formatCurrency(val) { return (!val || val == 0 || val === "0") ? "" : val.toString().replace(/\B(?=(\d{3})+(?!\d))/g, "."); }
 function formatInput(el) { let raw = el.value.replace(/[^0-9]/g, ''); el.value = raw ? (parseInt(raw, 10) === 0 ? '' : formatCurrency(parseInt(raw, 10))) : ''; }
@@ -174,12 +166,15 @@ function adjustAmount(step) {
   let newVal = Math.min(Math.max(currentVal + step, 2000), 2000000000); input.value = formatCurrency(newVal);
 }
 function getRawAmount() { return parseInt(document.getElementById('amount').value.replace(/\./g, ''), 10) || 0; }
+
 function onSearchInput() { searchQuery = document.getElementById('searchInput').value.trim().toLowerCase(); currentPage = 1; renderDeckView(globalRecords); }
 function setFilter(filterType, btnEl) { currentFilter = filterType; currentPage = 1; document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active')); btnEl.classList.add('active'); renderDeckView(globalRecords); }
 function changePage(direction) { currentPage += direction; renderDeckView(globalRecords); }
 
 function loadData(isSilent = false) {
-  fetch(`${API_URL}?action=get&t=${new Date().getTime()}`)
+  if(!verifyAuthSilent()) return;
+
+  fetch(`${API_URL}?action=get&t=${Date.now()}`)
     .then(res => res.text()).then(text => {
       let res; try { res = JSON.parse(text); } catch(e) { return; }
       if (!res.success) {
@@ -193,11 +188,12 @@ function loadData(isSilent = false) {
 
 function renderDeckView(records) {
   const container = document.getElementById('deckView');
-  if(!records || records.length === 0) { container.innerHTML = '<div style="text-align: center; padding: 40px;">Chưa có giao dịch nào</div>'; document.getElementById('pageInfo').innerText = '1 / 1'; return; }
+  if(!records || records.length === 0) { container.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--text-muted);">Chưa có giao dịch nào</div>'; document.getElementById('pageInfo').innerText = '1 / 1'; return; }
+  
   let filtered = records;
   if (currentFilter !== 'All') filtered = filtered.filter(r => r.status && r.status.includes(currentFilter));
   if (searchQuery) filtered = filtered.filter(r => r.id && r.id.toLowerCase().includes(searchQuery));
-  if (filtered.length === 0) { container.innerHTML = '<div style="text-align: center; padding: 40px;">Không tìm thấy kết quả</div>'; return; }
+  if (filtered.length === 0) { container.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--text-muted);">Không tìm thấy kết quả</div>'; return; }
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
   currentPage = Math.min(Math.max(currentPage, 1), totalPages);
@@ -214,10 +210,8 @@ function renderDeckView(records) {
 
     card.innerHTML = `
       <div class="card-left">
-        <div class="card-info">
-          <div class="card-id-wrap"><span class="card-id">#${record.id}</span></div>
-          <span class="card-time">${record.time || '---'}</span>
-        </div>
+        <span class="card-id">#${record.id}</span>
+        <span class="card-time">${record.time || '---'}</span>
       </div>
       <div class="card-right">
         <div class="card-amount">${formatCurrency(record.amount)}</div>
@@ -234,7 +228,7 @@ function submitForm() {
   if (!amount || amount < 2000 || amount > 2000000000) { msgDiv.innerHTML = '<span style="color: var(--status-failed);">Mức tối thiểu là 2.000</span>'; return; }
   btn.style.display = 'none'; loader.style.display = 'block'; msgDiv.innerHTML = '';
 
-  fetch(`${API_URL}?action=add&amount=${amount}&t=${new Date().getTime()}`)
+  fetch(`${API_URL}?action=add&amount=${amount}&t=${Date.now()}`)
     .then(res => res.json()).then(response => {
       btn.style.display = 'block'; loader.style.display = 'none';
       if(response.success) {
