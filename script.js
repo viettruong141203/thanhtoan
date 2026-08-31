@@ -3,23 +3,21 @@ const API_URL = "https://script.google.com/macros/s/AKfycbyyun_QUMFygjjOUbPLLE9m
 let globalRecords = [], currentTransaction = null, autoUpdateTimeout, sessionTimerId, allBanksList = [];
 let currentFilter = 'All', searchQuery = '', currentPage = 1;
 const itemsPerPage = 10;
+const SYNC_INTERVAL = 1500; // Cập nhật ngầm chuẩn 1,5 giây
 
-// BẢO MẬT PHIÊN LÀM VIỆC NGẦM (KHÔNG HIỂN THỊ ĐỒNG HỒ)
+// BẢO MẬT PHIÊN LÀM VIỆC NGẦM (5 PHÚT)
 function verifyAuthSilent() {
   const authExpiry = localStorage.getItem('auth_expiry');
   if (!authExpiry || Date.now() >= parseInt(authExpiry)) {
-    logout();
-    return false;
+    logout(); return false;
   }
   return true;
 }
 
 window.onload = function() {
   if (verifyAuthSilent()) {
-    // Chạy vòng lặp ngầm kiểm tra 5 giây 1 lần
     clearInterval(sessionTimerId);
-    sessionTimerId = setInterval(verifyAuthSilent, 5000);
-    
+    sessionTimerId = setInterval(verifyAuthSilent, 2000);
     loadData(false);
     preloadBanksFromVietQR();
   }
@@ -35,9 +33,7 @@ function logout() {
   window.location.replace("./login.html");
 }
 
-// ----------------------------------------------------
-// ĐIỀU HƯỚNG BOTTOM NAV (CHUYỂN TAB)
-// ----------------------------------------------------
+// ĐIỀU HƯỚNG TAB
 function switchTab(tabId, el) {
   document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
   el.classList.add('active');
@@ -48,9 +44,13 @@ function switchTab(tabId, el) {
   if (tabId === 'banks') loadBankAccounts();
 }
 
-// ----------------------------------------------------
-// QUẢN LÝ NGÂN HÀNG
-// ----------------------------------------------------
+// ĐỊNH DẠNG SỐ TÀI KHOẢN (Cách nhau khoảng trắng cho dễ đọc)
+function formatAccountNumber(numStr) {
+  if (!numStr) return '';
+  return numStr.replace(/\s+/g, '').replace(/(\d{4})(?=\d)/g, '$1 ');
+}
+
+// QUẢN LÝ NGÂN HÀNG DẠNG THẺ
 function preloadBanksFromVietQR() {
   fetch('https://api.vietqr.io/v2/banks').then(res => res.json()).then(data => { if(data.code === '00') allBanksList = data.data; }).catch(() => {});
 }
@@ -70,44 +70,47 @@ function formatOwnerName(el) {
 }
 
 function loadBankAccounts() {
-  const tbody = document.getElementById('bankTableBody');
-  tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--text-muted); padding:20px;">Đang tải dữ liệu...</td></tr>`;
+  const container = document.getElementById('bankCardList');
+  container.innerHTML = `<div style="text-align:center; color:var(--text-muted); padding:40px;">Đang tải dữ liệu...</div>`;
 
   fetch(`${API_URL}?action=getBanks&t=${Date.now()}`)
     .then(res => res.json())
     .then(res => {
       if(!res.success || res.data.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--text-muted); padding:20px;">Chưa có tài khoản nào</td></tr>`; return;
+        container.innerHTML = `<div style="text-align:center; color:var(--text-muted); padding:40px;">Chưa có tài khoản nào</div>`; return;
       }
-      tbody.innerHTML = '';
+      container.innerHTML = '';
       res.data.forEach(bk => {
         const bankObj = allBanksList.find(b => b.bin === bk.bin || b.shortName === bk.bankName);
         const logoUrl = bankObj ? bankObj.logo : 'https://img.icons8.com/fluency/48/bank.png';
         const isActive = bk.status.includes('dùng');
-        tbody.innerHTML += `
-          <tr>
-            <td>
-              <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
-                 <img src="${logoUrl}" class="bank-logo-mini">
-                 <span style="font-size:11px;">${bk.bankName}</span>
+        const formattedAcc = formatAccountNumber(bk.accNumber);
+
+        container.innerHTML += `
+          <div class="bank-card-item">
+            <div class="bank-card-left">
+              <img src="${logoUrl}" class="bank-logo-img">
+              <div class="bank-info-group">
+                <span class="bank-name-text">${bk.bankName}</span>
+                <span class="bank-acc-formatted">${formattedAcc}</span>
+                <span class="bank-owner-text">${bk.accOwner}</span>
               </div>
-            </td>
-            <td>
-              <span class="card-id">${bk.accNumber}</span><br>
-              <span style="color:var(--text-muted); font-size:11px;">${bk.accOwner}</span>
-            </td>
-            <td>
-              <span class="bank-badge ${isActive ? 'active' : 'inactive'}" onclick="setActiveBank('${bk.id}')">
+            </div>
+            <div class="bank-card-right">
+              <button class="bank-badge ${isActive ? 'active' : 'inactive'}" onclick="setActiveBank('${bk.id}')">
                 ${isActive ? 'Đang dùng' : 'Chọn dùng'}
-              </span>
-            </td>
-          </tr>`;
+              </button>
+              <button class="icon-copy-mini" onclick="copyDirect('${bk.accNumber}')" title="Sao chép số tài khoản" style="margin-top:4px;">
+                <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" stroke-width="2.5" fill="none"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+              </button>
+            </div>
+          </div>`;
       });
     });
 }
 
 function setActiveBank(bankId) {
-  showToast("Đang xử lý...");
+  showToast("Đang cập nhật...");
   fetch(`${API_URL}?action=setActiveBank&id=${bankId}&t=${Date.now()}`).then(res => res.json()).then(res => {
       showToast(res.message); loadBankAccounts();
   });
@@ -156,9 +159,7 @@ function saveBankConfig() {
     });
 }
 
-// ----------------------------------------------------
-// XỬ LÝ GIAO DỊCH
-// ----------------------------------------------------
+// XỬ LÝ GIAO DỊCH (ĐỒNG BỘ 1,5 GIÂY)
 function formatCurrency(val) { return (!val || val == 0 || val === "0") ? "" : val.toString().replace(/\B(?=(\d{3})+(?!\d))/g, "."); }
 function formatInput(el) { let raw = el.value.replace(/[^0-9]/g, ''); el.value = raw ? (parseInt(raw, 10) === 0 ? '' : formatCurrency(parseInt(raw, 10))) : ''; }
 function adjustAmount(step) {
@@ -179,11 +180,11 @@ function loadData(isSilent = false) {
       let res; try { res = JSON.parse(text); } catch(e) { return; }
       if (!res.success) {
          if(!isSilent) document.getElementById('deckView').innerHTML = `<div style="text-align:center; padding:20px;">${res.message}</div>`;
-         autoUpdateTimeout = setTimeout(() => loadData(true), 5000); return;
+         autoUpdateTimeout = setTimeout(() => loadData(true), SYNC_INTERVAL); return;
       }
       globalRecords = res.data; renderDeckView(globalRecords); checkAndAutoUpdateModal(globalRecords);
-      autoUpdateTimeout = setTimeout(() => loadData(true), 2000);
-    }).catch(() => { autoUpdateTimeout = setTimeout(() => loadData(true), 5000); });
+      autoUpdateTimeout = setTimeout(() => loadData(true), SYNC_INTERVAL);
+    }).catch(() => { autoUpdateTimeout = setTimeout(() => loadData(true), SYNC_INTERVAL); });
 }
 
 function renderDeckView(records) {
