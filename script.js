@@ -4,10 +4,11 @@ let globalRecords = [], currentTransaction = null, autoUpdateTimeout, sessionInt
 let currentFilter = 'All', searchQuery = '', currentPage = 1;
 const itemsPerPage = 10;
 
-// BẢO MẬT PHIÊN LÀM VIỆC
+// BẢO MẬT & ĐẾM NGƯỢC
 window.onload = function() {
   const authExpiry = localStorage.getItem('auth_expiry');
-  if (!authExpiry || new Date().getTime() >= parseInt(authExpiry)) {
+  const now = new Date().getTime();
+  if (!authExpiry || now >= parseInt(authExpiry)) {
     window.location.href = "login.html"; return;
   }
   startSessionTimer(parseInt(authExpiry));
@@ -36,28 +37,31 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // ----------------------------------------------------
-// ĐIỀU HƯỚNG BOTTOM NAV (CHUYỂN TAB)
+// ĐIỀU HƯỚNG BOTTOM NAV (CHUYỂN TAB CỰC MƯỢT)
 // ----------------------------------------------------
 function switchTab(tabId, el) {
-  // Đổi màu icon Bottom Nav
+  // Thay đổi trạng thái nút dưới cùng
   document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
   el.classList.add('active');
 
-  // Đổi View
+  // Chuyển màn hình
   document.querySelectorAll('.tab-view').forEach(tab => tab.classList.remove('active'));
   document.getElementById('tab-' + tabId).classList.add('active');
 
-  // Nếu chuyển qua tab Ngân hàng thì load dữ liệu
+  // Nếu người dùng chọn tab Ngân hàng thì kéo API cập nhật dữ liệu
   if (tabId === 'banks') {
     loadBankAccounts();
   }
 }
 
 // ----------------------------------------------------
-// QUẢN LÝ NGÂN HÀNG (TAB NGÂN HÀNG)
+// QUẢN LÝ NGÂN HÀNG (VIETQR API)
 // ----------------------------------------------------
 function preloadBanksFromVietQR() {
-  fetch('https://api.vietqr.io/v2/banks').then(res => res.json()).then(data => { if(data.code === '00') allBanksList = data.data; }).catch(() => {});
+  fetch('https://api.vietqr.io/v2/banks')
+    .then(res => res.json())
+    .then(data => { if(data.code === '00') allBanksList = data.data; })
+    .catch(() => {});
 }
 
 function removeVietnameseTones(str) {
@@ -78,7 +82,9 @@ function loadBankAccounts() {
   const tbody = document.getElementById('bankTableBody');
   tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--text-muted); padding:20px;">Đang tải dữ liệu...</td></tr>`;
 
-  fetch(`${API_URL}?action=getBanks&t=${new Date().getTime()}`).then(res => res.json()).then(res => {
+  fetch(`${API_URL}?action=getBanks&t=${new Date().getTime()}`)
+    .then(res => res.json())
+    .then(res => {
       if(!res.success || res.data.length === 0) {
         tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--text-muted); padding:20px;">Chưa có tài khoản nào</td></tr>`; return;
       }
@@ -114,6 +120,7 @@ function setActiveBank(bankId) {
   });
 }
 
+// Bật form thêm ngân hàng vào Modal
 function openBankForm() {
   document.querySelectorAll('#mainModal .add-view, #mainModal .receipt-view').forEach(el => el.classList.remove('active'));
   document.getElementById('view-bank-form').classList.add('active');
@@ -152,7 +159,7 @@ function saveBankConfig() {
       if(res.success) { 
         showToast("Đã lưu ngân hàng!"); 
         closeModal(); 
-        loadBankAccounts(); 
+        loadBankAccounts(); // Refresh lại tab Ngân hàng
       } else { showToast("Lỗi: " + res.message); }
     });
 }
