@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, viewport-fit=cover">
+  <title>Đăng nhập Hệ thống</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="login-wrapper">
+    <div class="login-card">
+      <div class="login-icon">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+      </div>
+      <h2 class="login-title">Hệ thống Quản trị</h2>
+      <p class="login-desc">Xác nhận danh tính để truy cập hệ thống</p>
+      
+      <!-- Form Gửi OTP -->
+      <div id="loginStep1">
+        <div class="admin-badge">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+          <span>dvtruong141203@gmail.com</span>
+        </div>
+        <button class="btn-auth" id="btnSendOtp" onclick="sendOtp()">
+          <span>Nhận mã đăng nhập qua Email</span>
+          <div class="loader" id="loaderSend"></div>
+        </button>
+      </div>
+
+      <!-- Form Nhập OTP -->
+      <div id="loginStep2" style="display:none;">
+        <input type="text" id="otpInput" class="otp-input" placeholder="••••••" maxlength="6" inputmode="numeric" autocomplete="one-time-code">
+        <button class="btn-auth" id="btnVerifyOtp" onclick="verifyOtp()">
+          <span>Xác nhận mã</span>
+          <div class="loader" id="loaderVerify"></div>
+        </button>
+        <button class="btn-auth-outline" onclick="backToStep1()">Gửi lại mã</button>
+      </div>
+
+      <div id="loginMsg" class="login-msg"></div>
+    </div>
+  </div>
+
+  <script src="auth.js"></script>
+</body>
+</html>
