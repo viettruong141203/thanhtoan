@@ -4,10 +4,10 @@ let globalRecords = [], currentTransaction = null, autoUpdateTimeout, sessionInt
 let currentFilter = 'All', searchQuery = '', currentPage = 1;
 const itemsPerPage = 10;
 
+// BẢO MẬT PHIÊN LÀM VIỆC
 window.onload = function() {
   const authExpiry = localStorage.getItem('auth_expiry');
-  const now = new Date().getTime();
-  if (!authExpiry || now >= parseInt(authExpiry)) {
+  if (!authExpiry || new Date().getTime() >= parseInt(authExpiry)) {
     window.location.href = "login.html"; return;
   }
   startSessionTimer(parseInt(authExpiry));
@@ -21,9 +21,9 @@ function startSessionTimer(expiryTime) {
   function updateTimer() {
     const distance = expiryTime - new Date().getTime();
     if (distance <= 0) { clearInterval(sessionInterval); window.location.href = "login.html"; return; }
-    const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
-    const seconds = Math.floor((distance % (1000 * 60)) / 1000);
-    timeDisplay.innerText = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    const m = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+    const s = Math.floor((distance % (1000 * 60)) / 1000);
+    timeDisplay.innerText = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   }
   updateTimer(); sessionInterval = setInterval(updateTimer, 1000);
 }
@@ -35,7 +35,27 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
-// QUẢN LÝ NGÂN HÀNG
+// ----------------------------------------------------
+// ĐIỀU HƯỚNG BOTTOM NAV (CHUYỂN TAB)
+// ----------------------------------------------------
+function switchTab(tabId, el) {
+  // Đổi màu icon Bottom Nav
+  document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
+  el.classList.add('active');
+
+  // Đổi View
+  document.querySelectorAll('.tab-view').forEach(tab => tab.classList.remove('active'));
+  document.getElementById('tab-' + tabId).classList.add('active');
+
+  // Nếu chuyển qua tab Ngân hàng thì load dữ liệu
+  if (tabId === 'banks') {
+    loadBankAccounts();
+  }
+}
+
+// ----------------------------------------------------
+// QUẢN LÝ NGÂN HÀNG (TAB NGÂN HÀNG)
+// ----------------------------------------------------
 function preloadBanksFromVietQR() {
   fetch('https://api.vietqr.io/v2/banks').then(res => res.json()).then(data => { if(data.code === '00') allBanksList = data.data; }).catch(() => {});
 }
@@ -54,16 +74,9 @@ function formatOwnerName(el) {
   let pos = el.selectionStart; el.value = removeVietnameseTones(el.value); el.setSelectionRange(pos, pos);
 }
 
-function openBankManager() {
-  document.querySelectorAll('#mainModal .add-view, #mainModal .receipt-view').forEach(el => el.classList.remove('active'));
-  document.getElementById('view-bank-mgr').classList.add('active');
-  document.getElementById('mainModal').classList.add('active');
-  loadBankAccounts();
-}
-
 function loadBankAccounts() {
   const tbody = document.getElementById('bankTableBody');
-  tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--text-muted);">Đang tải dữ liệu...</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--text-muted); padding:20px;">Đang tải dữ liệu...</td></tr>`;
 
   fetch(`${API_URL}?action=getBanks&t=${new Date().getTime()}`).then(res => res.json()).then(res => {
       if(!res.success || res.data.length === 0) {
@@ -95,6 +108,7 @@ function loadBankAccounts() {
 }
 
 function setActiveBank(bankId) {
+  showToast("Đang xử lý...");
   fetch(`${API_URL}?action=setActiveBank&id=${bankId}&t=${new Date().getTime()}`).then(res => res.json()).then(res => {
       showToast(res.message); loadBankAccounts();
   });
@@ -103,6 +117,7 @@ function setActiveBank(bankId) {
 function openBankForm() {
   document.querySelectorAll('#mainModal .add-view, #mainModal .receipt-view').forEach(el => el.classList.remove('active'));
   document.getElementById('view-bank-form').classList.add('active');
+  document.getElementById('mainModal').classList.add('active');
 }
 
 function toggleBankList() {
@@ -134,11 +149,17 @@ function saveBankConfig() {
   fetch(`${API_URL}?action=addBank&bankName=${encodeURIComponent(name)}&bin=${encodeURIComponent(bin)}&accNumber=${encodeURIComponent(acc)}&accOwner=${encodeURIComponent(owner)}&t=${new Date().getTime()}`)
     .then(res => res.json()).then(res => {
       btn.style.display = 'block'; loader.style.display = 'none';
-      if(res.success) { showToast("Đã lưu ngân hàng!"); openBankManager(); } else { showToast("Lỗi: " + res.message); }
+      if(res.success) { 
+        showToast("Đã lưu ngân hàng!"); 
+        closeModal(); 
+        loadBankAccounts(); 
+      } else { showToast("Lỗi: " + res.message); }
     });
 }
 
-// XỬ LÝ GIAO DỊCH
+// ----------------------------------------------------
+// XỬ LÝ GIAO DỊCH (TAB GIAO DỊCH)
+// ----------------------------------------------------
 function formatCurrency(val) { return (!val || val == 0 || val === "0") ? "" : val.toString().replace(/\B(?=(\d{3})+(?!\d))/g, "."); }
 function formatInput(el) { let raw = el.value.replace(/[^0-9]/g, ''); el.value = raw ? (parseInt(raw, 10) === 0 ? '' : formatCurrency(parseInt(raw, 10))) : ''; }
 function adjustAmount(step) {
@@ -258,6 +279,5 @@ function openPaymentView() {
 }
 
 function closeModal() { document.getElementById('mainModal').classList.remove('active'); }
-
 function copyDirect(text) { navigator.clipboard.writeText(text).then(() => showToast('Đã sao chép!')); }
 function showToast(msg) { const toast = document.getElementById('toastMsg'); toast.innerText = msg; toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 2500); }
