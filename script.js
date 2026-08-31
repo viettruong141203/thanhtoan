@@ -1,10 +1,10 @@
-// DÁN LINK MỚI ĐÃ DEPLOY VÀO ĐÂY NHÉ
 const API_URL = "https://script.google.com/macros/s/AKfycbyyun_QUMFygjjOUbPLLE9mJJQdLGOXPV8OvXlh-JM8Napr4Cx8tBRccHMlSCZ_vvBb/exec";
 
 let globalRecords = [], currentTransaction = null, autoUpdateTimeout, sessionTimerId, allBanksList = [];
 let currentFilter = 'All', searchQuery = '', currentPage = 1;
 const itemsPerPage = 10;
 
+// BẢO MẬT NGẦM (Không hiển thị timer)
 function verifyAuthSilent() {
   const authExpiry = localStorage.getItem('auth_expiry');
   if (!authExpiry || Date.now() >= parseInt(authExpiry)) {
@@ -15,20 +15,31 @@ function verifyAuthSilent() {
 
 window.onload = function() {
   if (verifyAuthSilent()) {
-    setInterval(verifyAuthSilent, 5000);
+    clearInterval(sessionTimerId);
+    sessionTimerId = setInterval(verifyAuthSilent, 5000);
+    
     loadData(false);
     preloadBanksFromVietQR();
   }
 };
 
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') verifyAuthSilent(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') verifyAuthSilent();
+});
 
 function switchTab(tabId, el) {
-  document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active')); el.classList.add('active');
-  document.querySelectorAll('.tab-view').forEach(tab => tab.classList.remove('active')); document.getElementById('tab-' + tabId).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
+  el.classList.add('active');
+
+  document.querySelectorAll('.tab-view').forEach(tab => tab.classList.remove('active'));
+  document.getElementById('tab-' + tabId).classList.add('active');
+
   if (tabId === 'banks') loadBankAccounts();
 }
 
+// ----------------------------------------------------
+// QUẢN LÝ NGÂN HÀNG (CARDS UI ĐẸP)
+// ----------------------------------------------------
 function preloadBanksFromVietQR() {
   fetch('https://api.vietqr.io/v2/banks').then(res => res.json()).then(data => { if(data.code === '00') allBanksList = data.data; }).catch(() => {});
 }
@@ -59,40 +70,40 @@ function loadBankAccounts() {
       res.data.forEach(bk => {
         const bankObj = allBanksList.find(b => b.bin === bk.bin || b.shortName === bk.bankName);
         const logoUrl = bankObj ? bankObj.logo : 'https://img.icons8.com/fluency/48/bank.png';
-        
-        // Cập nhật điều kiện trạng thái "Hoạt động"
         const isActive = bk.status === 'Hoạt động';
         
         container.innerHTML += `
-          <div class="bank-card-item">
-            <div class="bank-card-left">
+          <div class="bank-dashboard-card ${isActive ? 'active' : ''}" onclick="setActiveBank('${bk.id}')">
+            <div class="bank-card-top">
               <div class="bank-logo-box"><img src="${logoUrl}"></div>
-              <div class="bank-info-box">
-                <span class="bank-name-text">${bk.bankName}</span>
-                <span class="bank-acc-text">${bk.accNumber}</span>
-                <span class="bank-owner-text">${bk.accOwner}</span>
-              </div>
+              <span class="bank-name-text">${bk.bankName}</span>
             </div>
-            <div class="bank-action-box">
-              <span class="bank-status-pill ${isActive ? 'active' : 'inactive'}" onclick="setActiveBank('${bk.id}')">${isActive ? 'Hoạt động' : 'Chọn dùng'}</span>
+            <div class="bank-card-bottom">
+              <span class="bank-acc-text">${bk.accNumber}</span>
+              <span class="bank-owner-text">${bk.accOwner}</span>
             </div>
+            <span class="bank-status-pill ${isActive ? 'active' : 'inactive'}">${isActive ? 'Đang hoạt động' : 'Chọn dùng'}</span>
           </div>`;
       });
     });
 }
 
 function setActiveBank(bankId) {
-  showToast("Đang xử lý...");
-  fetch(`${API_URL}?action=setActiveBank&id=${bankId}&t=${Date.now()}`).then(res => res.json()).then(res => { showToast(res.message); loadBankAccounts(); });
+  showToast("Đang kích hoạt...");
+  fetch(`${API_URL}?action=setActiveBank&id=${bankId}&t=${Date.now()}`).then(res => res.json()).then(res => {
+      showToast(res.message); loadBankAccounts();
+  });
 }
 
 function openBankForm() {
   document.querySelectorAll('#mainModal .add-view, #mainModal .receipt-view').forEach(el => el.classList.remove('active'));
-  document.getElementById('view-bank-form').classList.add('active'); document.getElementById('mainModal').classList.add('active');
+  document.getElementById('view-bank-form').classList.add('active');
+  document.getElementById('mainModal').classList.add('active');
 }
 
 function toggleBankList() {
-  const dropdown = document.getElementById('bankDropdownList'); dropdown.classList.toggle('show');
+  const dropdown = document.getElementById('bankDropdownList');
+  dropdown.classList.toggle('show');
   if(dropdown.children.length === 0 && allBanksList.length > 0) {
     dropdown.innerHTML = '';
     allBanksList.forEach(b => {
@@ -101,7 +112,8 @@ function toggleBankList() {
       item.onclick = () => {
         document.getElementById('bankBinInput').value = b.bin; document.getElementById('bankNameInput').value = b.shortName;
         document.getElementById('selectedBankName').innerText = b.shortName;
-        const img = document.getElementById('selectedBankLogo'); img.src = b.logo; img.style.display = 'block'; dropdown.classList.remove('show');
+        const img = document.getElementById('selectedBankLogo'); img.src = b.logo; img.style.display = 'block';
+        dropdown.classList.remove('show');
       };
       dropdown.appendChild(item);
     });
@@ -111,6 +123,7 @@ function toggleBankList() {
 function saveBankConfig() {
   const bin = document.getElementById('bankBinInput').value, name = document.getElementById('bankNameInput').value, acc = document.getElementById('bankAccInput').value.replace(/\s+/g, ''), owner = document.getElementById('bankOwnerInput').value.trim();
   const btn = document.getElementById('btnSaveBank'), loader = document.getElementById('loaderSaveBank');
+
   if (!bin || !acc || !owner) { showToast("Vui lòng điền đủ thông tin!"); return; }
   btn.style.display = 'none'; loader.style.display = 'block';
 
@@ -125,6 +138,9 @@ function saveBankConfig() {
     });
 }
 
+// ----------------------------------------------------
+// ĐỒNG BỘ NGẦM CHUẨN 1.5 GIÂY
+// ----------------------------------------------------
 function formatCurrency(val) { return (!val || val == 0 || val === "0") ? "" : val.toString().replace(/\B(?=(\d{3})+(?!\d))/g, "."); }
 function formatInput(el) { let raw = el.value.replace(/[^0-9]/g, ''); el.value = raw ? (parseInt(raw, 10) === 0 ? '' : formatCurrency(parseInt(raw, 10))) : ''; }
 function adjustAmount(step) {
@@ -138,14 +154,17 @@ function changePage(direction) { currentPage += direction; renderDeckView(global
 
 function loadData(isSilent = false) {
   if(!verifyAuthSilent()) return;
-  fetch(`${API_URL}?action=get&t=${Date.now()}`).then(res => res.text()).then(text => {
+
+  fetch(`${API_URL}?action=get&t=${Date.now()}`)
+    .then(res => res.text()).then(text => {
       let res; try { res = JSON.parse(text); } catch(e) { return; }
       if (!res.success) {
          if(!isSilent) document.getElementById('deckView').innerHTML = `<div style="text-align:center; padding:20px; font-weight:700;">${res.message}</div>`;
          autoUpdateTimeout = setTimeout(() => loadData(true), 1500); return;
       }
       globalRecords = res.data; renderDeckView(globalRecords); checkAndAutoUpdateModal(globalRecords);
-      autoUpdateTimeout = setTimeout(() => loadData(true), 1500); 
+      // Quét ngầm mỗi 1.5s
+      autoUpdateTimeout = setTimeout(() => loadData(true), 1500);
     }).catch(() => { autoUpdateTimeout = setTimeout(() => loadData(true), 1500); });
 }
 
@@ -163,7 +182,8 @@ function renderDeckView(records) {
   document.getElementById('pageInfo').innerText = `${currentPage} / ${totalPages}`;
   document.getElementById('prevBtn').disabled = (currentPage === 1); document.getElementById('nextBtn').disabled = (currentPage === totalPages);
 
-  const startIdx = (currentPage - 1) * itemsPerPage; container.innerHTML = '';
+  const startIdx = (currentPage - 1) * itemsPerPage;
+  container.innerHTML = '';
   filtered.slice(startIdx, startIdx + itemsPerPage).forEach((record) => {
     const originalIndex = globalRecords.indexOf(record);
     const card = document.createElement('div'); card.className = 'card'; card.onclick = () => openModal(originalIndex);
@@ -194,8 +214,9 @@ function submitForm() {
   fetch(`${API_URL}?action=add&amount=${amount}&t=${Date.now()}`)
     .then(res => res.json()).then(response => {
       btn.style.display = 'block'; loader.style.display = 'none';
-      if(response.success) { document.getElementById('amount').value = ''; populateModal(response.data); } 
-      else { msgDiv.innerHTML = `<span style="color: var(--status-failed);">${response.message}</span>`; }
+      if(response.success) {
+        document.getElementById('amount').value = ''; populateModal(response.data); 
+      } else { msgDiv.innerHTML = `<span style="color: var(--status-failed);">${response.message}</span>`; }
     });
 }
 
