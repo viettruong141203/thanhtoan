@@ -4,22 +4,23 @@ let globalRecords = [];
 let currentTransaction = null;
 let autoUpdateTimeout; 
 let sessionInterval;
+let allBanksList = [];
 
 let currentFilter = 'All';
 let searchQuery = '';
 let currentPage = 1;
 const itemsPerPage = 10;
 
-// LUÔN BẢO VỆ TRANG BẰNG CÁCH KIỂM TRA ĐĂNG NHẬP ĐẦU TIÊN
 window.onload = function() {
   const authExpiry = localStorage.getItem('auth_expiry');
   const now = new Date().getTime();
   if (!authExpiry || now >= parseInt(authExpiry)) {
-    window.location.href = "login.html"; // Đá văng về trang đăng nhập
+    window.location.href = "login.html";
     return;
   }
   startSessionTimer(parseInt(authExpiry));
   loadData(false);
+  preloadBanksFromVietQR();
 };
 
 function startSessionTimer(expiryTime) {
@@ -49,13 +50,153 @@ function logout() {
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {
     const authExpiry = localStorage.getItem('auth_expiry');
-    if (!authExpiry || new Date().getTime() >= parseInt(authExpiry)) {
-      logout();
-    }
+    if (!authExpiry || new Date().getTime() >= parseInt(authExpiry)) logout();
   }
 });
 
-// XỬ LÝ LÕI DỮ LIỆU
+// ----------------------------------------------------
+// LOGIC QUẢN LÝ NGÂN HÀNG (VIETQR API + GOOGLE SHEET)
+// ----------------------------------------------------
+function preloadBanksFromVietQR() {
+  fetch('https://api.vietqr.io/v2/banks')
+    .then(res => res.json())
+    .then(data => {
+      if(data.code === '00') allBanksList = data.data;
+    }).catch(() => {});
+}
+
+function removeVietnameseTones(str) {
+  str = str.replace(/à|á|ạ|ả|ã|â|ầ|ấ|ậ|ẩ|ẫ|ă|ằ|ắ|ặ|ẳ|ẵ/g,"a"); 
+  str = str.replace(/è|é|ẹ|ẻ|ẽ|ê|ề|ế|ệ|ể|ễ/g,"e"); 
+  str = str.replace(/ì|í|ị|ỉ|ĩ/g,"i"); 
+  str = str.replace(/ò|ó|ọ|ỏ|õ|ô|ồ|ố|ộ|ổ|ỗ|ơ|ờ|ớ|ợ|ở|ỡ/g,"o"); 
+  str = str.replace(/ù|ú|ụ|ủ|ũ|ư|ừ|ứ|ự|ử|ữ/g,"u"); 
+  str = str.replace(/ỳ|ý|ỵ|ỷ|ỹ/g,"y"); 
+  str = str.replace(/đ/g,"d");
+  return str.toUpperCase();
+}
+
+function formatOwnerName(el) {
+  let pos = el.selectionStart;
+  el.value = removeVietnameseTones(el.value);
+  el.setSelectionRange(pos, pos);
+}
+
+function openBankManager() {
+  document.querySelectorAll('#mainModal .add-view, #mainModal .receipt-view').forEach(el => el.classList.remove('active'));
+  document.getElementById('view-bank-mgr').classList.add('active');
+  document.getElementById('mainModal').classList.add('active');
+  loadBankAccounts();
+}
+
+function loadBankAccounts() {
+  const tbody = document.getElementById('bankTableBody');
+  tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--text-muted);">Đang tải dữ liệu...</td></tr>`;
+
+  fetch(`${API_URL}?action=getBanks&t=${new Date().getTime()}`)
+    .then(res => res.json())
+    .then(res => {
+      if(!res.success || res.data.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--text-muted); padding:20px;">Chưa có tài khoản nào</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = '';
+      res.data.forEach(bk => {
+        const bankObj = allBanksList.find(b => b.bin === bk.bin || b.shortName === bk.bankName);
+        const logoUrl = bankObj ? bankObj.logo : 'https://img.icons8.com/fluency/48/bank.png';
+        const isActive = bk.status.includes('dùng');
+
+        tbody.innerHTML += `
+          <tr>
+            <td>
+              <img src="${logoUrl}" class="bank-logo-mini">
+              <span>${bk.bankName}</span>
+            </td>
+            <td>
+              <span class="mono">${bk.accNumber}</span><br>
+              <small style="color:var(--text-muted); font-size:11px;">${bk.accOwner}</small>
+            </td>
+            <td>
+              <span class="bank-badge ${isActive ? 'active' : 'inactive'}" onclick="setActiveBank('${bk.id}')">
+                ${isActive ? 'Đang dùng' : 'Chọn dùng'}
+              </span>
+            </td>
+          </tr>`;
+      });
+    });
+}
+
+function setActiveBank(bankId) {
+  fetch(`${API_URL}?action=setActiveBank&id=${bankId}&t=${new Date().getTime()}`)
+    .then(res => res.json())
+    .then(res => {
+      showToast(res.message);
+      loadBankAccounts();
+    });
+}
+
+function openBankForm() {
+  document.querySelectorAll('#mainModal .add-view, #mainModal .receipt-view').forEach(el => el.classList.remove('active'));
+  document.getElementById('view-bank-form').classList.add('active');
+}
+
+function toggleBankList() {
+  const dropdown = document.getElementById('bankDropdownList');
+  dropdown.classList.toggle('show');
+
+  if(dropdown.children.length === 0 && allBanksList.length > 0) {
+    dropdown.innerHTML = '';
+    allBanksList.forEach(b => {
+      const item = document.createElement('div');
+      item.className = 'bank-item';
+      item.innerHTML = `<img src="${b.logo}"><span><b>${b.shortName}</b> - ${b.name}</span>`;
+      item.onclick = () => {
+        document.getElementById('bankBinInput').value = b.bin;
+        document.getElementById('bankNameInput').value = b.shortName;
+        document.getElementById('selectedBankName').innerText = b.shortName;
+        const img = document.getElementById('selectedBankLogo');
+        img.src = b.logo;
+        img.style.display = 'block';
+        dropdown.classList.remove('show');
+      };
+      dropdown.appendChild(item);
+    });
+  }
+}
+
+function saveBankConfig() {
+  const bin = document.getElementById('bankBinInput').value;
+  const name = document.getElementById('bankNameInput').value;
+  const acc = document.getElementById('bankAccInput').value.trim();
+  const owner = document.getElementById('bankOwnerInput').value.trim();
+  const btn = document.getElementById('btnSaveBank');
+  const loader = document.getElementById('loaderSaveBank');
+
+  if (!bin || !acc || !owner) {
+    showToast("Vui lòng điền đủ thông tin!");
+    return;
+  }
+
+  btn.style.display = 'none';
+  loader.style.display = 'block';
+
+  fetch(`${API_URL}?action=addBank&bankName=${encodeURIComponent(name)}&bin=${encodeURIComponent(bin)}&accNumber=${encodeURIComponent(acc)}&accOwner=${encodeURIComponent(owner)}&t=${new Date().getTime()}`)
+    .then(res => res.json())
+    .then(res => {
+      btn.style.display = 'block';
+      loader.style.display = 'none';
+      if(res.success) {
+        showToast("Đã lưu ngân hàng vào Sheet!");
+        openBankManager();
+      } else {
+        showToast("Lỗi: " + res.message);
+      }
+    });
+}
+
+// ----------------------------------------------------
+// XỬ LÝ DỮ LIỆU GIAO DỊCH
+// ----------------------------------------------------
 function formatCurrency(val) { 
   if (!val || val == 0 || val === "0") return "";
   return val.toString().replace(/\B(?=(\d{3})+(?!\d))/g, "."); 
@@ -63,70 +204,60 @@ function formatCurrency(val) {
 
 function formatInput(el) {
   let raw = el.value.replace(/[^0-9]/g, '');
-  if(raw) {
-     let num = parseInt(raw, 10);
-     if(num === 0) el.value = ''; else el.value = formatCurrency(num);
-  } else { el.value = ''; }
+  el.value = raw ? (parseInt(raw, 10) === 0 ? '' : formatCurrency(parseInt(raw, 10))) : '';
 }
 
 function adjustAmount(step) {
   const input = document.getElementById('amount');
-  let raw = input.value.replace(/\./g, '');
-  let currentVal = parseInt(raw, 10);
-  if(isNaN(currentVal)) currentVal = 0;
-  let newVal = currentVal + step;
-  if (newVal < 2000) newVal = 2000;
-  if (newVal > 2000000000) newVal = 2000000000;
+  let currentVal = parseInt(input.value.replace(/\./g, ''), 10) || 0;
+  let newVal = Math.min(Math.max(currentVal + step, 2000), 2000000000);
   input.value = formatCurrency(newVal);
 }
 
 function getRawAmount() {
-  const val = document.getElementById('amount').value.replace(/\./g, '');
-  let num = parseInt(val, 10);
-  return isNaN(num) ? 0 : num;
+  return parseInt(document.getElementById('amount').value.replace(/\./g, ''), 10) || 0;
 }
 
 function onSearchInput() {
   searchQuery = document.getElementById('searchInput').value.trim().toLowerCase();
-  currentPage = 1; renderDeckView(globalRecords);
+  currentPage = 1; 
+  renderDeckView(globalRecords);
 }
 
 function setFilter(filterType, btnEl) {
-  currentFilter = filterType; currentPage = 1; 
+  currentFilter = filterType; 
+  currentPage = 1; 
   document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
-  btnEl.classList.add('active'); renderDeckView(globalRecords);
+  btnEl.classList.add('active'); 
+  renderDeckView(globalRecords);
 }
 
 function changePage(direction) {
-  currentPage += direction; renderDeckView(globalRecords);
+  currentPage += direction; 
+  renderDeckView(globalRecords);
 }
 
 function loadData(isSilent = false) {
   fetch(`${API_URL}?action=get&t=${new Date().getTime()}`)
-    .then(response => response.text())
-    .then(text => {
-      let res;
-      try { res = JSON.parse(text); } catch(e) { return; }
-      if (!res.success) {
-         if(!isSilent) document.getElementById('deckView').innerHTML = `<div style="color: var(--status-failed); text-align: center; padding: 20px; font-weight: bold; font-size: 14px;">${res.message}</div>`;
-         autoUpdateTimeout = setTimeout(() => loadData(true), 5000); return;
-      }
+    .then(res => res.json())
+    .then(res => {
+      if (!res.success) return;
       globalRecords = res.data;
       renderDeckView(globalRecords);
       checkAndAutoUpdateModal(globalRecords);
       autoUpdateTimeout = setTimeout(() => loadData(true), 2000);
     })
-    .catch(err => {
-      if(!isSilent) document.getElementById('deckView').innerHTML = `<div style="color: var(--status-failed); text-align: center; padding: 20px; font-weight: bold; font-size: 14px;">Lỗi mạng: Đang tải lại...</div>`;
-      autoUpdateTimeout = setTimeout(() => loadData(true), 5000); 
+    .catch(() => {
+      autoUpdateTimeout = setTimeout(() => loadData(true), 5000);
     });
 }
 
 function renderDeckView(records) {
   const container = document.getElementById('deckView');
   if(!records || records.length === 0) {
-    container.innerHTML = '<div style="text-align: center; color: var(--text-muted); font-weight: 500; padding: 40px; font-size: 14px;">Chưa có giao dịch nào</div>';
-    document.getElementById('pageInfo').innerText = '1 / 1'; return;
+    container.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 40px; font-size: 14px;">Chưa có giao dịch nào</div>';
+    document.getElementById('pageInfo').innerText = '1 / 1'; 
+    return;
   }
 
   let filtered = records;
@@ -134,22 +265,22 @@ function renderDeckView(records) {
   if (searchQuery) filtered = filtered.filter(r => r.id && r.id.toLowerCase().includes(searchQuery));
 
   if (filtered.length === 0) {
-    container.innerHTML = '<div style="text-align: center; color: var(--text-muted); font-weight: 500; padding: 40px; font-size: 14px;">Không tìm thấy kết quả</div>';
+    container.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 40px; font-size: 14px;">Không tìm thấy kết quả</div>';
     document.getElementById('pageInfo').innerText = '1 / 1';
-    document.getElementById('prevBtn').disabled = true; document.getElementById('nextBtn').disabled = true;
+    document.getElementById('prevBtn').disabled = true; 
+    document.getElementById('nextBtn').disabled = true;
     return;
   }
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
-  if (currentPage > totalPages) currentPage = totalPages;
-  if (currentPage < 1) currentPage = 1;
+  currentPage = Math.min(Math.max(currentPage, 1), totalPages);
+
   document.getElementById('pageInfo').innerText = `${currentPage} / ${totalPages}`;
   document.getElementById('prevBtn').disabled = (currentPage === 1);
   document.getElementById('nextBtn').disabled = (currentPage === totalPages);
 
   const startIdx = (currentPage - 1) * itemsPerPage;
-  const endIdx = startIdx + itemsPerPage;
-  const currentSlice = filtered.slice(startIdx, endIdx);
+  const currentSlice = filtered.slice(startIdx, startIdx + itemsPerPage);
 
   container.innerHTML = '';
   currentSlice.forEach((record) => {
@@ -158,9 +289,8 @@ function renderDeckView(records) {
     card.className = 'card';
     card.onclick = () => openModal(originalIndex);
     
-    let stClass = 'failed'; let stText = 'Thất bại';
-    if(record.status.includes('Chờ')) { stClass = 'pending'; stText = 'Đang xử lí'; }
-    else if(record.status.includes('Đã')) { stClass = 'success'; stText = 'Hoàn tất'; }
+    let stClass = record.status.includes('Chờ') ? 'pending' : (record.status.includes('Đã') ? 'success' : 'failed');
+    let stText = record.status.includes('Chờ') ? 'Đang xử lí' : (record.status.includes('Đã') ? 'Hoàn tất' : 'Thất bại');
 
     card.innerHTML = `
       <div class="card-left">
@@ -168,7 +298,7 @@ function renderDeckView(records) {
           <div class="card-id-wrap">
             <span class="card-id">#${record.id}</span>
             <button class="icon-copy-mini" onclick="event.stopPropagation(); copyDirect('${record.id}')">
-              <svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+              <svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
             </button>
           </div>
           <span class="card-time">${record.time || '---'}</span>
@@ -177,14 +307,13 @@ function renderDeckView(records) {
       <div class="card-right">
         <div class="card-amount">${formatCurrency(record.amount)}</div>
         <div class="status-text ${stClass}">${stText}</div>
-      </div>
-    `;
+      </div>`;
     container.appendChild(card);
   });
 }
 
 function openAddModal() {
-  document.getElementById('view-receipt').classList.remove('active');
+  document.querySelectorAll('#mainModal .add-view, #mainModal .receipt-view').forEach(el => el.classList.remove('active'));
   document.getElementById('view-add').classList.add('active');
   document.getElementById('message').innerHTML = ''; 
   document.getElementById('mainModal').classList.add('active');
@@ -197,54 +326,47 @@ function submitForm() {
   const loader = document.getElementById('loadingBtn');
 
   if (!amount || amount < 2000 || amount > 2000000000) {
-    msgDiv.innerHTML = '<span style="color: var(--status-failed);">Mức tối thiểu là 2.000</span>'; return;
+    msgDiv.innerHTML = '<span style="color: var(--status-failed);">Mức tối thiểu là 2.000</span>'; 
+    return;
   }
-  btn.style.display = 'none'; loader.style.display = 'block'; msgDiv.innerHTML = '';
+  btn.style.display = 'none'; 
+  loader.style.display = 'block'; 
+  msgDiv.innerHTML = '';
 
   fetch(`${API_URL}?action=add&amount=${amount}&t=${new Date().getTime()}`)
-    .then(response => response.json())
+    .then(res => res.json())
     .then(response => {
-      btn.style.display = 'block'; loader.style.display = 'none';
+      btn.style.display = 'block'; 
+      loader.style.display = 'none';
       if(response.success) {
         document.getElementById('amount').value = '';
-        currentFilter = 'All'; currentPage = 1; document.getElementById('searchInput').value = ''; searchQuery = '';
-        document.querySelectorAll('.filter-btn').forEach((b,i) => {
-          if(i===0) b.classList.add('active'); else b.classList.remove('active');
-        });
         populateModal(response.data); 
       } else {
         msgDiv.innerHTML = `<span style="color: var(--status-failed);">${response.message}</span>`;
       }
-    })
-    .catch(err => {
-       btn.style.display = 'block'; loader.style.display = 'none';
-       msgDiv.innerHTML = `<span style="color: var(--status-failed);">Lỗi đường truyền</span>`;
     });
 }
 
 function checkAndAutoUpdateModal(records) {
   if(!currentTransaction) return;
   const modal = document.getElementById('mainModal');
-  if(!modal.classList.contains('active')) return;
-  if(document.getElementById('view-add').classList.contains('active')) return;
+  if(!modal.classList.contains('active') || document.getElementById('view-add').classList.contains('active')) return;
 
   const latestData = records.find(r => r.id === currentTransaction.id);
-  if(latestData) {
-    if(currentTransaction.status?.includes('Chờ') && latestData.status?.includes('Đã')) {
-       currentTransaction = latestData;
-       populateModal(currentTransaction);
-       showToast('Giao dịch đã được thanh toán!');
-    } else {
-       currentTransaction = latestData;
-    }
+  if(latestData && currentTransaction.status?.includes('Chờ') && latestData.status?.includes('Đã')) {
+    currentTransaction = latestData;
+    populateModal(currentTransaction);
+    showToast('Giao dịch đã hoàn tất!');
   }
 }
 
-function openModal(index) { populateModal(globalRecords[index]); }
+function openModal(index) { 
+  populateModal(globalRecords[index]); 
+}
 
 function populateModal(data) {
   currentTransaction = data; 
-  document.getElementById('view-add').classList.remove('active');
+  document.querySelectorAll('#mainModal .add-view, #mainModal .receipt-view').forEach(el => el.classList.remove('active'));
   document.getElementById('view-receipt').classList.add('active');
 
   document.getElementById('rc-id').innerText = '#' + data.id;
@@ -258,7 +380,8 @@ function populateModal(data) {
   if (data.status?.includes('Chờ')) {
     statusTextEl.innerText = 'Đang xử lí'; 
     statusTextEl.className = 'status-text-only pending';
-    payTimeRow.style.display = 'none'; btnGoToPay.style.display = 'block'; 
+    payTimeRow.style.display = 'none'; 
+    btnGoToPay.style.display = 'block'; 
   } else if (data.status?.includes('Đã')) {
     statusTextEl.innerText = 'Hoàn tất'; 
     statusTextEl.className = 'status-text-only success';
@@ -268,35 +391,28 @@ function populateModal(data) {
   } else {
     statusTextEl.innerText = 'Thất bại'; 
     statusTextEl.className = 'status-text-only failed';
-    payTimeRow.style.display = 'none'; btnGoToPay.style.display = 'none';
+    payTimeRow.style.display = 'none'; 
+    btnGoToPay.style.display = 'none';
   }
   document.getElementById('mainModal').classList.add('active');
 }
 
 function openPaymentView() {
-  const data = currentTransaction;
-  if(!data || !data.id) return;
-  window.open("https://viettruong141203.github.io/payment/?id=" + data.id, "_blank"); 
+  if(!currentTransaction || !currentTransaction.id) return;
+  window.open("https://viettruong141203.github.io/payment/?id=" + currentTransaction.id, "_blank"); 
 }
 
-function closeModal() { document.getElementById('mainModal').classList.remove('active'); }
-
-function fallbackCopyTextToClipboard(text) {
-  var textArea = document.createElement("textarea");
-  textArea.value = text;
-  textArea.style.top = "0"; textArea.style.left = "0"; textArea.style.position = "fixed";
-  document.body.appendChild(textArea); textArea.focus(); textArea.select();
-  try { document.execCommand('copy'); showToast('Đã sao chép!'); } catch (err) {}
-  document.body.removeChild(textArea);
+function closeModal() { 
+  document.getElementById('mainModal').classList.remove('active'); 
 }
 
 function copyDirect(text) {
-  if (!navigator.clipboard) { fallbackCopyTextToClipboard(text); return; }
-  navigator.clipboard.writeText(text).then(function() { showToast('Đã sao chép!'); }, function() { fallbackCopyTextToClipboard(text); });
+  navigator.clipboard.writeText(text).then(() => showToast('Đã sao chép!'));
 }
 
 function showToast(msg) {
   const toast = document.getElementById('toastMsg');
-  toast.innerText = msg; toast.classList.add('show');
+  toast.innerText = msg; 
+  toast.classList.add('show');
   setTimeout(() => toast.classList.remove('show'), 2500);
 }
