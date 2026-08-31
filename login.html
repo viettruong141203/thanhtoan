@@ -7,7 +7,6 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-
   <div class="login-wrapper">
     <div class="login-card">
       <div class="login-icon">
@@ -16,7 +15,6 @@
       <h2 class="login-title">Hệ thống Quản trị</h2>
       <p class="login-desc">Xác nhận danh tính để truy cập hệ thống</p>
       
-      <!-- Form Gửi OTP -->
       <div id="loginStep1">
         <div class="admin-badge">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
@@ -28,7 +26,6 @@
         </button>
       </div>
 
-      <!-- Form Nhập OTP -->
       <div id="loginStep2" style="display:none;">
         <input type="text" id="otpInput" class="otp-input" placeholder="••••••" maxlength="6" inputmode="numeric" autocomplete="one-time-code">
         <button class="btn-auth" id="btnVerifyOtp" onclick="verifyOtp()">
@@ -37,11 +34,62 @@
         </button>
         <button class="btn-auth-outline" onclick="backToStep1()">Gửi lại mã</button>
       </div>
-
       <div id="loginMsg" class="login-msg"></div>
     </div>
   </div>
 
-  <script src="auth.js"></script>
+  <script>
+    const API_URL = "https://script.google.com/macros/s/AKfycbyyun_QUMFygjjOUbPLLE9mJJQdLGOXPV8OvXlh-JM8Napr4Cx8tBRccHMlSCZ_vvBb/exec";
+    const ADMIN_EMAIL = "dvtruong141203@gmail.com";
+
+    window.onload = function() {
+      const authExpiry = localStorage.getItem('auth_expiry');
+      if (authExpiry && new Date().getTime() < parseInt(authExpiry)) {
+        window.location.href = "index.html"; 
+      }
+    };
+
+    function sendOtp() {
+      const btn = document.getElementById('btnSendOtp'), loader = document.getElementById('loaderSend'), msg = document.getElementById('loginMsg');
+      msg.innerText = ""; btn.querySelector('span').style.display = 'none'; loader.style.display = 'block';
+      fetch(`${API_URL}?action=sendOTP&email=${encodeURIComponent(ADMIN_EMAIL)}&t=${new Date().getTime()}`)
+        .then(res => res.json()).then(res => {
+          btn.querySelector('span').style.display = 'inline'; loader.style.display = 'none';
+          if(res.success) {
+            document.getElementById('loginStep1').style.display = 'none';
+            document.getElementById('loginStep2').style.display = 'block';
+            document.getElementById('otpInput').focus();
+            msg.style.color = "var(--status-success)"; msg.innerText = res.message;
+          } else { msg.style.color = "var(--status-failed)"; msg.innerText = res.message; }
+        }).catch(err => {
+          btn.querySelector('span').style.display = 'inline'; loader.style.display = 'none';
+          msg.style.color = "var(--status-failed)"; msg.innerText = "Lỗi mạng khi gửi OTP!";
+        });
+    }
+
+    function verifyOtp() {
+      const otp = document.getElementById('otpInput').value.trim(), btn = document.getElementById('btnVerifyOtp'), loader = document.getElementById('loaderVerify'), msg = document.getElementById('loginMsg');
+      if(otp.length !== 6) { msg.style.color = "var(--status-failed)"; msg.innerText = "Vui lòng nhập 6 số OTP"; return; }
+      msg.innerText = ""; btn.querySelector('span').style.display = 'none'; loader.style.display = 'block';
+      fetch(`${API_URL}?action=verifyOTP&otp=${encodeURIComponent(otp)}&t=${new Date().getTime()}`)
+        .then(res => res.json()).then(res => {
+          if(res.success) {
+            localStorage.setItem('auth_expiry', new Date().getTime() + (5 * 60 * 1000));
+            window.location.href = "index.html"; 
+          } else {
+            btn.querySelector('span').style.display = 'inline'; loader.style.display = 'none';
+            msg.style.color = "var(--status-failed)"; msg.innerText = res.message;
+          }
+        }).catch(err => {
+          btn.querySelector('span').style.display = 'inline'; loader.style.display = 'none';
+          msg.style.color = "var(--status-failed)"; msg.innerText = "Lỗi mạng!";
+        });
+    }
+
+    function backToStep1() {
+      document.getElementById('loginStep2').style.display = 'none'; document.getElementById('loginStep1').style.display = 'block';
+      document.getElementById('otpInput').value = ''; document.getElementById('loginMsg').innerText = '';
+    }
+  </script>
 </body>
 </html>
