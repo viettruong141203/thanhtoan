@@ -4,7 +4,7 @@
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, viewport-fit=cover">
-  <title>Hệ Thống Thanh Toán Online</title>
+  <title>Hệ Thống Thanh Toán</title>
   <style>
     :root {
       --bg-base: #e2e8f0; --card-bg: #ffffff; --card-border: #ffffff; 
@@ -32,8 +32,7 @@
     }
     .login-card {
       background: #ffffff; border-radius: 32px; width: 100%; max-width: 360px; padding: 40px 24px;
-      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,1);
-      text-align: center;
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,1); text-align: center;
     }
     .login-icon { background: #eff6ff; border-radius: 50%; width: 64px; height: 64px; display: flex; align-items: center; justify-content: center; color: var(--brand-primary); margin: 0 auto 16px;}
     .login-title { font-size: 1.4rem; font-weight: 800; margin: 0 0 8px 0; color: var(--text-main);}
@@ -159,7 +158,6 @@
       <h2 class="login-title">Bảo mật hệ thống</h2>
       <p class="login-desc">Xác thực quyền truy cập bằng OTP</p>
       
-      <!-- Bước 1: Gửi OTP -->
       <div id="loginStep1">
         <input type="email" id="emailInput" class="login-input" placeholder="Nhập Email của bạn..." value="dvtruong141203@gmail.com" readonly>
         <button class="btn-auth" id="btnSendOtp" onclick="sendOtp()">
@@ -168,7 +166,6 @@
         </button>
       </div>
 
-      <!-- Bước 2: Nhập OTP -->
       <div id="loginStep2" style="display:none;">
         <input type="text" id="otpInput" class="login-input" placeholder="Nhập 6 số OTP..." maxlength="6" inputmode="numeric">
         <button class="btn-auth" id="btnVerifyOtp" onclick="verifyOtp()">
@@ -182,10 +179,9 @@
     </div>
   </div>
 
-  <!-- GIAO DIỆN CHÍNH CỦA APP (BỊ ẨN KHI CHƯA ĐĂNG NHẬP) -->
+  <!-- GIAO DIỆN CHÍNH -->
   <div id="mainApp">
     
-    <!-- Đồng hồ đếm ngược Session -->
     <div class="session-timer" id="sessionTimer" style="display: none;">
       Phiên đăng nhập: <span id="timeRemaining">05:00</span>
     </div>
@@ -278,29 +274,46 @@
   </div>
 
   <div class="toast" id="toastMsg">Đã sao chép!</div>
+
   <script>
-    // DÁN LINK GOOGLE APPS SCRIPT (ĐÃ DEPLOY VERSION MỚI) VÀO ĐÂY
+    // ĐƯỜNG LINK BACKEND
     const API_URL = "https://script.google.com/macros/s/AKfycbyyun_QUMFygjjOUbPLLE9mJJQdLGOXPV8OvXlh-JM8Napr4Cx8tBRccHMlSCZ_vvBb/exec";
 
-    // ----------------------------------------------------
-    // KHỐI QUẢN LÝ XÁC THỰC (ĐĂNG NHẬP OTP BẢO MẬT TỐI ĐA 5 PHÚT)
-    // ----------------------------------------------------
-    let sessionInterval;
+    window.onerror = function(msg, url, line) {
+       const errDiv = document.createElement('div');
+       errDiv.style = "position:fixed; top:0; left:0; right:0; background:#e11d48; color:white; z-index:9999; padding:12px; font-size:13px; font-weight:bold; text-align:center;";
+       errDiv.innerText = "LỖI HỆ THỐNG: " + msg;
+       document.body.appendChild(errDiv);
+    };
 
+    let globalRecords = [];
+    let currentTransaction = null;
+    let autoUpdateTimeout; 
+    let sessionInterval;
+    
+    let currentFilter = 'All';
+    let searchQuery = '';
+    let currentPage = 1;
+    const itemsPerPage = 10;
+
+    // ----------------------------------------------------
+    // KIỂM TRA ĐĂNG NHẬP & ĐẾM NGƯỢC 5 PHÚT CHÍNH XÁC
+    // ----------------------------------------------------
     function checkLoginState() {
       const authExpiry = localStorage.getItem('auth_expiry');
       const now = new Date().getTime();
       
-      // Nếu có hạn và chưa hết hạn (chưa qua 5 phút)
       if (authExpiry && now < parseInt(authExpiry)) {
         document.getElementById('loginScreen').style.display = 'none';
         document.getElementById('mainApp').style.display = 'block';
         document.getElementById('sessionTimer').style.display = 'flex';
         
         startSessionTimer(parseInt(authExpiry));
-        startPolling(); // Chỉ lấy dữ liệu khi đã đăng nhập
+        
+        // Tránh trùng lặp khi vừa ẩn/mở lại trình duyệt
+        clearTimeout(autoUpdateTimeout);
+        loadData(false);
       } else {
-        // Hết hạn hoặc chưa đăng nhập
         logout();
       }
     }
@@ -315,7 +328,8 @@
       btn.querySelector('span').style.display = 'none';
       loader.style.display = 'block';
 
-      fetch(`${API_URL}?action=sendOTP&email=${encodeURIComponent(email)}`)
+      // Thêm timestamp để chống cache mượt mà
+      fetch(`${API_URL}?action=sendOTP&email=${encodeURIComponent(email)}&t=${new Date().getTime()}`)
         .then(res => res.json())
         .then(res => {
           btn.querySelector('span').style.display = 'inline';
@@ -355,18 +369,16 @@
       btn.querySelector('span').style.display = 'none';
       loader.style.display = 'block';
 
-      fetch(`${API_URL}?action=verifyOTP&otp=${encodeURIComponent(otp)}`)
+      fetch(`${API_URL}?action=verifyOTP&otp=${encodeURIComponent(otp)}&t=${new Date().getTime()}`)
         .then(res => res.json())
         .then(res => {
           btn.querySelector('span').style.display = 'inline';
           loader.style.display = 'none';
           
           if(res.success) {
-            // Cài đặt thời gian sống: Hiện tại + 5 phút
+            // Đúng chuẩn 5 phút (300.000 ms)
             const expiryTime = new Date().getTime() + (5 * 60 * 1000);
             localStorage.setItem('auth_expiry', expiryTime);
-            
-            // Xóa thông báo, mở app
             msg.innerText = "";
             checkLoginState(); 
           } else {
@@ -393,44 +405,47 @@
       clearInterval(sessionInterval);
       const timeDisplay = document.getElementById('timeRemaining');
       
-      sessionInterval = setInterval(() => {
+      function updateTimer() {
         const now = new Date().getTime();
         const distance = expiryTime - now;
         
-        if (distance < 0) {
+        if (distance <= 0) {
           clearInterval(sessionInterval);
-          logout(); // Ép văng ra khỏi hệ thống
+          logout(); 
           return;
         }
         
         const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
         const seconds = Math.floor((distance % (1000 * 60)) / 1000);
-        
         timeDisplay.innerText = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-      }, 1000);
+      }
+      
+      updateTimer(); // Chạy cập nhật liền
+      sessionInterval = setInterval(updateTimer, 1000);
     }
 
     function logout() {
       localStorage.removeItem('auth_expiry');
       clearInterval(sessionInterval);
-      clearTimeout(autoUpdateTimeout); // Ngừng tải dữ liệu ngầm
+      clearTimeout(autoUpdateTimeout); 
       
       document.getElementById('mainApp').style.display = 'none';
       document.getElementById('loginScreen').style.display = 'flex';
-      backToStep1(); // Đưa về màn nhập email
+      backToStep1(); 
       document.getElementById('loginMsg').innerText = "Phiên đăng nhập đã kết thúc.";
     }
 
-    // ----------------------------------------------------
-    // KHỐI XỬ LÝ GIAO DIỆN (MAIN APP) - Giữ nguyên
-    // ----------------------------------------------------
-    let globalRecords = [];
-    let currentTransaction = null;
-    let currentFilter = 'All';
-    let searchQuery = '';
-    let currentPage = 1;
-    const itemsPerPage = 10;
+    // Lắng nghe sự kiện người dùng ẩn web/khoá màn hình (khiến setInterval ngủ)
+    // Khi họ mở lại, nếu đã quá 5 phút thì văng ngay lập tức, sửa lỗi đếm thời gian bị đứng
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+         checkLoginState();
+      }
+    });
 
+    // ----------------------------------------------------
+    // XỬ LÝ LÕI DỮ LIỆU
+    // ----------------------------------------------------
     function formatCurrency(val) { 
       if (!val || val == 0 || val === "0") return "";
       return val.toString().replace(/\B(?=(\d{3})+(?!\d))/g, "."); 
@@ -477,26 +492,35 @@
     }
     
     function loadData(isSilent = false) {
-      // Xác minh lại quyền trước khi load ngầm
       const authExpiry = localStorage.getItem('auth_expiry');
       if (!authExpiry || new Date().getTime() > parseInt(authExpiry)) {
          logout(); return;
       }
 
-      fetch(API_URL + "?action=get")
-        .then(response => response.json())
-        .then(res => {
+      // Luôn gắn Date.now() để bắt trình duyệt load Data sống (Anti-Cache Safari)
+      fetch(`${API_URL}?action=get&t=${new Date().getTime()}`)
+        .then(response => response.text())
+        .then(text => {
+          let res;
+          try {
+            res = JSON.parse(text);
+          } catch(e) {
+            // Fix lỗi người dùng không bật Anyone khi Deploy
+            throw new Error("Lỗi xác thực App Script! Hãy đảm bảo bạn đã chọn quyền Anyone.");
+          }
+
           if (!res.success) {
              if(!isSilent) document.getElementById('deckView').innerHTML = `<div style="color: var(--status-failed); text-align: center; padding: 20px; font-weight: bold; font-size: 14px;">${res.message}</div>`;
              autoUpdateTimeout = setTimeout(() => loadData(true), 5000); return;
           }
+
           globalRecords = res.data;
           renderDeckView(globalRecords);
           checkAndAutoUpdateModal(globalRecords);
           autoUpdateTimeout = setTimeout(() => loadData(true), 2000);
         })
         .catch(err => {
-          if(!isSilent) document.getElementById('deckView').innerHTML = `<div style="color: var(--status-failed); text-align: center; padding: 20px; font-weight: bold; font-size: 14px;">Đang đồng bộ...</div>`;
+          if(!isSilent) document.getElementById('deckView').innerHTML = `<div style="color: var(--status-failed); text-align: center; padding: 20px; font-weight: bold; font-size: 14px;">Lỗi đường truyền hoặc URL cấu hình sai!</div>`;
           autoUpdateTimeout = setTimeout(() => loadData(true), 5000); 
         });
     }
@@ -583,7 +607,7 @@
 
       btn.style.display = 'none'; loader.style.display = 'block'; msgDiv.innerHTML = '';
 
-      fetch(API_URL + "?action=add&amount=" + amount)
+      fetch(`${API_URL}?action=add&amount=${amount}&t=${new Date().getTime()}`)
         .then(response => response.json())
         .then(response => {
           btn.style.display = 'block'; loader.style.display = 'none';
@@ -688,7 +712,7 @@
       setTimeout(() => toast.classList.remove('show'), 2500);
     }
 
-    // Kích hoạt khi vừa load trang
+    // Khi khởi chạy
     window.onload = checkLoginState;
   </script>
 </body>
