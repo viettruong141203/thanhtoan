@@ -3,13 +3,13 @@ const API_URL = "https://script.google.com/macros/s/AKfycbyyun_QUMFygjjOUbPLLE9m
 let globalRecords = [], currentTransaction = null, autoUpdateTimeout, sessionTimerId, allBanksList = [];
 let currentFilter = 'All', searchQuery = '', currentPage = 1;
 const itemsPerPage = 10;
-const SYNC_INTERVAL = 1500; // Cập nhật ngầm chuẩn 1,5 giây
 
-// BẢO MẬT PHIÊN LÀM VIỆC NGẦM (5 PHÚT)
+// BẢO MẬT NGẦM 5 PHÚT (QUÉT 1 GIÂY/LẦN)
 function verifyAuthSilent() {
   const authExpiry = localStorage.getItem('auth_expiry');
   if (!authExpiry || Date.now() >= parseInt(authExpiry)) {
-    logout(); return false;
+    logout();
+    return false;
   }
   return true;
 }
@@ -17,7 +17,8 @@ function verifyAuthSilent() {
 window.onload = function() {
   if (verifyAuthSilent()) {
     clearInterval(sessionTimerId);
-    sessionTimerId = setInterval(verifyAuthSilent, 2000);
+    sessionTimerId = setInterval(verifyAuthSilent, 1000);
+    
     loadData(false);
     preloadBanksFromVietQR();
   }
@@ -33,7 +34,6 @@ function logout() {
   window.location.replace("./login.html");
 }
 
-// ĐIỀU HƯỚNG TAB
 function switchTab(tabId, el) {
   document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
   el.classList.add('active');
@@ -44,13 +44,7 @@ function switchTab(tabId, el) {
   if (tabId === 'banks') loadBankAccounts();
 }
 
-// ĐỊNH DẠNG SỐ TÀI KHOẢN (Cách nhau khoảng trắng cho dễ đọc)
-function formatAccountNumber(numStr) {
-  if (!numStr) return '';
-  return numStr.replace(/\s+/g, '').replace(/(\d{4})(?=\d)/g, '$1 ');
-}
-
-// QUẢN LÝ NGÂN HÀNG DẠNG THẺ
+// QUẢN LÝ NGÂN HÀNG (ĐỊNH DẠNG TEXT)
 function preloadBanksFromVietQR() {
   fetch('https://api.vietqr.io/v2/banks').then(res => res.json()).then(data => { if(data.code === '00') allBanksList = data.data; }).catch(() => {});
 }
@@ -70,47 +64,45 @@ function formatOwnerName(el) {
 }
 
 function loadBankAccounts() {
-  const container = document.getElementById('bankCardList');
-  container.innerHTML = `<div style="text-align:center; color:var(--text-muted); padding:40px;">Đang tải dữ liệu...</div>`;
+  const tbody = document.getElementById('bankTableBody');
+  tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--text-muted); padding:20px;">Đang tải dữ liệu...</td></tr>`;
 
   fetch(`${API_URL}?action=getBanks&t=${Date.now()}`)
     .then(res => res.json())
     .then(res => {
       if(!res.success || res.data.length === 0) {
-        container.innerHTML = `<div style="text-align:center; color:var(--text-muted); padding:40px;">Chưa có tài khoản nào</div>`; return;
+        tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--text-muted); padding:20px;">Chưa có tài khoản nào</td></tr>`; return;
       }
-      container.innerHTML = '';
+      tbody.innerHTML = '';
       res.data.forEach(bk => {
         const bankObj = allBanksList.find(b => b.bin === bk.bin || b.shortName === bk.bankName);
         const logoUrl = bankObj ? bankObj.logo : 'https://img.icons8.com/fluency/48/bank.png';
         const isActive = bk.status.includes('dùng');
-        const formattedAcc = formatAccountNumber(bk.accNumber);
-
-        container.innerHTML += `
-          <div class="bank-card-item">
-            <div class="bank-card-left">
-              <img src="${logoUrl}" class="bank-logo-img">
-              <div class="bank-info-group">
-                <span class="bank-name-text">${bk.bankName}</span>
-                <span class="bank-acc-formatted">${formattedAcc}</span>
-                <span class="bank-owner-text">${bk.accOwner}</span>
+        
+        tbody.innerHTML += `
+          <tr>
+            <td>
+              <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+                 <img src="${logoUrl}" class="bank-logo-mini">
+                 <span style="font-size:11px;">${bk.bankName}</span>
               </div>
-            </div>
-            <div class="bank-card-right">
-              <button class="bank-badge ${isActive ? 'active' : 'inactive'}" onclick="setActiveBank('${bk.id}')">
+            </td>
+            <td>
+              <span class="bank-acc-text">${bk.accNumber}</span><br>
+              <span style="color:var(--text-muted); font-size:11px;">${bk.accOwner}</span>
+            </td>
+            <td>
+              <span class="bank-badge ${isActive ? 'active' : 'inactive'}" onclick="setActiveBank('${bk.id}')">
                 ${isActive ? 'Đang dùng' : 'Chọn dùng'}
-              </button>
-              <button class="icon-copy-mini" onclick="copyDirect('${bk.accNumber}')" title="Sao chép số tài khoản" style="margin-top:4px;">
-                <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" stroke-width="2.5" fill="none"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-              </button>
-            </div>
-          </div>`;
+              </span>
+            </td>
+          </tr>`;
       });
     });
 }
 
 function setActiveBank(bankId) {
-  showToast("Đang cập nhật...");
+  showToast("Đang xử lý...");
   fetch(`${API_URL}?action=setActiveBank&id=${bankId}&t=${Date.now()}`).then(res => res.json()).then(res => {
       showToast(res.message); loadBankAccounts();
   });
@@ -142,7 +134,8 @@ function toggleBankList() {
 }
 
 function saveBankConfig() {
-  const bin = document.getElementById('bankBinInput').value, name = document.getElementById('bankNameInput').value, acc = document.getElementById('bankAccInput').value.trim(), owner = document.getElementById('bankOwnerInput').value.trim();
+  // Loại bỏ khoảng trắng ở số tài khoản
+  const bin = document.getElementById('bankBinInput').value, name = document.getElementById('bankNameInput').value, acc = document.getElementById('bankAccInput').value.replace(/\s+/g, ''), owner = document.getElementById('bankOwnerInput').value.trim();
   const btn = document.getElementById('btnSaveBank'), loader = document.getElementById('loaderSaveBank');
 
   if (!bin || !acc || !owner) { showToast("Vui lòng điền đủ thông tin!"); return; }
@@ -154,12 +147,16 @@ function saveBankConfig() {
       if(res.success) { 
         showToast("Đã lưu ngân hàng!"); 
         closeModal(); 
+        document.getElementById('bankAccInput').value = '';
+        document.getElementById('bankOwnerInput').value = '';
         loadBankAccounts(); 
       } else { showToast("Lỗi: " + res.message); }
     });
 }
 
-// XỬ LÝ GIAO DỊCH (ĐỒNG BỘ 1,5 GIÂY)
+// ----------------------------------------------------
+// ĐỒNG BỘ NGẦM CHUẨN 1.5 GIÂY (1500ms)
+// ----------------------------------------------------
 function formatCurrency(val) { return (!val || val == 0 || val === "0") ? "" : val.toString().replace(/\B(?=(\d{3})+(?!\d))/g, "."); }
 function formatInput(el) { let raw = el.value.replace(/[^0-9]/g, ''); el.value = raw ? (parseInt(raw, 10) === 0 ? '' : formatCurrency(parseInt(raw, 10))) : ''; }
 function adjustAmount(step) {
@@ -167,7 +164,6 @@ function adjustAmount(step) {
   let newVal = Math.min(Math.max(currentVal + step, 2000), 2000000000); input.value = formatCurrency(newVal);
 }
 function getRawAmount() { return parseInt(document.getElementById('amount').value.replace(/\./g, ''), 10) || 0; }
-
 function onSearchInput() { searchQuery = document.getElementById('searchInput').value.trim().toLowerCase(); currentPage = 1; renderDeckView(globalRecords); }
 function setFilter(filterType, btnEl) { currentFilter = filterType; currentPage = 1; document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active')); btnEl.classList.add('active'); renderDeckView(globalRecords); }
 function changePage(direction) { currentPage += direction; renderDeckView(globalRecords); }
@@ -180,11 +176,12 @@ function loadData(isSilent = false) {
       let res; try { res = JSON.parse(text); } catch(e) { return; }
       if (!res.success) {
          if(!isSilent) document.getElementById('deckView').innerHTML = `<div style="text-align:center; padding:20px;">${res.message}</div>`;
-         autoUpdateTimeout = setTimeout(() => loadData(true), SYNC_INTERVAL); return;
+         autoUpdateTimeout = setTimeout(() => loadData(true), 1500); return;
       }
       globalRecords = res.data; renderDeckView(globalRecords); checkAndAutoUpdateModal(globalRecords);
-      autoUpdateTimeout = setTimeout(() => loadData(true), SYNC_INTERVAL);
-    }).catch(() => { autoUpdateTimeout = setTimeout(() => loadData(true), SYNC_INTERVAL); });
+      // Quét ngầm mỗi 1.5s
+      autoUpdateTimeout = setTimeout(() => loadData(true), 1500);
+    }).catch(() => { autoUpdateTimeout = setTimeout(() => loadData(true), 1500); });
 }
 
 function renderDeckView(records) {
